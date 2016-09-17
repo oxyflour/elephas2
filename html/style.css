@@ -1,0 +1,107 @@
+html, body {
+  height: 100%;
+  overflow: hidden;
+}
+body {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+* {
+  -webkit-user-select: none;
+}
+.main {
+  width: 180px;
+  height: 180px;
+  text-align: center;
+  line-height: 100px;
+  position: relative;
+  transition: opacity 0.2s;
+  opacity: 0;
+}
+.main .float-button {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 0;
+}
+.main .float-button > * {
+  display: block;
+  background: #eee;
+  border-radius: 50%;
+  width: 40px;
+  height: 40px;
+  line-height: 40px;
+  text-align: center;
+  transition: transform 0.2s;
+}
+body.show .main {
+  opacity: 1;
+}
+body.show .main .float-button > * {
+  transform: translate(30%, 0);
+}
+body.no-anim .main {
+  transition: none;
+}
+.main .container {
+  width: 100%;
+  height: 100%;
+  position: absolute;
+  left: 0;
+  top: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+body.is-moving,
+body.is-moving * {
+  cursor: move;
+}
+body.is-zooming,
+body.is-zooming * {
+  cursor: nesw-resize;
+}
+body.is-rotating,
+body.is-rotating * {
+  cursor: nwse-resize;
+}
+body.is-manipulating .main {
+  opacity: 0;
+}
+
+#moveControl,
+#moveLayer,
+#manipulateCanvas {
+  cursor: grabbing;
+}
+#zoom {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  left: 0;
+  top: 0;
+  display: none;
+}
+body.is-manipulating #zoom {
+  display: block;
+}
+#zoomStatus {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+}
+
+#colorPicker {
+  border-radius: 50%;
+}
+#colorPickerRotation {
+  transition: transform 0.1s;
+}
+
+svg text.icon-awesome {
+  font-family: FontAwesome;
+  cursor: pointer;
+}

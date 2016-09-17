@@ -1,0 +1,19 @@
+{
+  "name": "elephas2",
+  "version": "0.0.1",
+  "description": "",
+  "main": "index.js",
+  "dependencies": {
+    "nan": "^2.4.0"
+  },
+  "devDependencies": {},
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "install": "node-gyp rebuild",
+    "build": "node-gyp rebuild --target=1.3.5 --arch=x64 --dist-url=https://atom.io/download/atom-shell"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "gypfile": true
+}
