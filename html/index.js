@@ -43,13 +43,17 @@ function attachAccessory(elem, keys, start, finish, ignore) {
 
     keys = Array.isArray(keys) ? keys : keys.split(' ').filter(key => key)
     keys.forEach(key => ipcRenderer.send('simulate-key', key, true))
+    elem.start = ipcRenderer.sendSync('get-cursor-position')
+    elem.base = { x: window.screenX, y: window.screenY }
     document.body.classList.add('is-transparent')
     start && start(evt, elem)
 
     ipcRenderer.send('simulate-key', 'LEFT', true)
-    ipcRenderer.once('hook-left-up', _ => {
-      document.body.classList.remove('is-transparent')
+    ipcRenderer.once('hook-mouse-up', _ => {
       keys.reverse().forEach(key => ipcRenderer.send('simulate-key', key, false))
+      const { x, y } = ipcRenderer.sendSync('get-cursor-position')
+      window.moveTo(elem.base.x + x - elem.start.x, elem.base.y + y - elem.start.y)
+      document.body.classList.remove('is-transparent')
       finish && finish(null, elem)
 
       ipcRenderer.send('ignore-mouse', false)
@@ -61,13 +65,10 @@ function attachAccessory(elem, keys, start, finish, ignore) {
 }
 
 void(function() {
-  const keyState = { },
-    triggerKey = 'Q'.charCodeAt(0)
-
-  function showWindow(pos) {
+  function showWindow() {
     document.body.classList.add('show')
     if (!window.isShown) {
-      const { x, y } = pos || ipcRenderer.sendSync('get-cursor-position')
+      const { x, y } = ipcRenderer.sendSync('get-cursor-position')
       window.resizeTo(360, 360)
       window.moveTo(x - 360 / 2, y - 360 / 2)
       window.dispatchEvent(new Event('before-window-shown'))
@@ -91,57 +92,39 @@ void(function() {
     })
   }
 
+  let triggerKeyCode = 'Q'.charCodeAt(0),
+    triggerKeyDown = false
+
   ipcRenderer.on('hook-key-down', (evt, key) => {
-    if (!keyState[key] && (keyState[key] = true)) {
-      if (key === triggerKey) {
-        showWindow()
-      }
+    if (key === triggerKeyCode && !triggerKeyDown && (triggerKeyDown = true)) {
+      showWindow()
     }
   })
 
   ipcRenderer.on('hook-key-up', (evt, key) => {
-    if (keyState[key] && !(keyState[key] = false)) {
-      if (key === triggerKey && !keyState.left) {
-        hideWindow()
-      }
+    if (key === triggerKeyCode && triggerKeyDown && !(triggerKeyDown = false)) {
+      hideWindow()
     }
   })
 
-  window.addEventListener('keydown', evt => {
-    const key = evt.keyCode
-    if (!keyState[key] && (keyState[key] = true)) {
-      if (key === triggerKey) {
-        showWindow()
-      }
+  ipcRenderer.on('hook-pen-down', (evt, isReversed) => {
+    if (isReversed && !triggerKeyDown && (triggerKeyDown = true)) {
+      showWindow()
+    }
+  })
+
+  ipcRenderer.on('hook-pen-up', (evt, isReversed) => {
+    if (isReversed && triggerKeyDown && !(triggerKeyDown = false)) {
+      hideWindow()
     }
   })
 
   window.addEventListener('keyup', evt => {
-    const key = evt.keyCode
-    if (keyState[key] && !(keyState[key] = false)) {
-      if (key === triggerKey && !keyState.left) {
-        hideWindow()
-      }
+    if (evt.keyCode === triggerKeyCode &&
+        triggerKeyDown && !(triggerKeyDown = false)) {
+      hideWindow()
     }
   })
-
-  window.addEventListener('mousedown', evt => {
-    const key = 'left'
-    if (!keyState[key] && (keyState[key] = true)) {
-//      showWindow()
-    }
-  })
-
-  window.addEventListener('mouseup', evt => {
-    const key = 'left'
-    if (keyState[key] && !(keyState[key] = false)) {
-      if (!keyState[triggerKey]) {
-        hideWindow()
-      }
-    }
-  })
-
-  return { keyState, triggerKey, showWindow, hideWindow }
 })()
 
 void(function() {
@@ -184,10 +167,12 @@ void(function() {
       zoomStatus.innerHTML = `${newAngle.toFixed(1)}deg`
     }
     else if (Math.abs(newScale - scale) / scale > 0.1) {
-      document.body.classList.add(elem.mode = 'is-zooming')
+      elem.mode = 'is-zooming'
+      document.body.classList.add(elem.mode)
     }
     else if (Math.abs(newAngle - angle) > 0.01 * 360) {
-      document.body.classList.add(elem.mode = 'is-rotating')
+      elem.mode = 'is-rotating'
+      document.body.classList.add(elem.mode)
     }
   }, (evt, elem) => {
     hideControl()
@@ -204,8 +189,6 @@ void(function() {
     window.moveTo(elem.base.x + x - elem.start.x, elem.base.y + y - elem.start.y)
   }, (evt, elem) => {
     document.body.classList.remove('is-moving')
-  }, (evt, elem) => {
-    return evt.target !== elem
   })
 
   attachAccessory(document.getElementById('moveLayer'), 'CONTROL')
@@ -432,10 +415,6 @@ void(function() {
     const { h, s, v } = ipcRenderer.sendSync('sai-color-hsv')
     setHSV(h, s, v)
   })
-})()
-
-void(function() {
-
 })()
 
 window.addEventListener('before-window-shown', evt => {

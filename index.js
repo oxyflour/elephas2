@@ -32,7 +32,7 @@ function accumThrottled(func, time) {
   }
 }
 
-const WND_OPTIONS = {
+const CTRL_WND_OPTS = {
   frame: false,
   transparent: true,
   show: false,
@@ -41,68 +41,64 @@ const WND_OPTIONS = {
   acceptFirstMouse: true,
 }
 
+const ASK_START_SAI = {
+  type: 'question',
+  title: 'find sai2 failed',
+  message: 'SAI2 seems not running. Would you like to start it?',
+  buttons: ['OK', 'OK and Remember', 'Cancel'],
+}
+
+const FIND_SAI_DIAG = {
+  title: 'where is sai2.exe?',
+  filters: [{ name: 'sai2.exe', extensions: ['exe'] }],
+}
+
 let win
 
 app.once('ready', _ => {
-  win = new BrowserWindow(WND_OPTIONS)
+  win = new BrowserWindow(CTRL_WND_OPTS)
   win.loadURL(`file://${__dirname}/html/index.html`)
   win.webContents.openDevTools({ mode: 'detach' })
 
-  const packageJSON = require(path.join(__dirname, 'package.json')),
-    configPath = path.join(app.getPath('home'), `${packageJSON.name}.json`),
-    config = fs.existsSync(configPath) ? require(configPath) : { }
-
+  hook.start()
   if (!hook.isOK()) {
-    const shouldStartSAI = {
-      type: 'question',
-      title: 'find sai2 failed',
-      message: 'SAI2 seems not running. Would you like to start it?',
-      buttons: ['OK', 'Cancel'],
+    const packageJSON = require(path.join(__dirname, 'package.json')),
+      configPath = path.join(app.getPath('home'), `${packageJSON.name}.json`),
+      config = fs.existsSync(configPath) ? require(configPath) : { }
+    if (!config.autoStart) {
+      const askStartResult = dialog.showMessageBox(ASK_START_SAI)
+      if (askStartResult === 2) {
+        return app.quit()
+      }
+      else if (askStartResult === 1) {
+        config.autoStart = true
+      }
     }
-    if (!config.autoStart && !dialog.showMessageBox(shouldStartSAI) === 0) {
-      return app.quit()
+    if (!config.saiPath) {
+      const findSaiResult = dialog.showOpenDialog(FIND_SAI_DIAG)
+      if (!findSaiResult || !(config.saiPath = findSaiResult[0]) || !fs.existsSync(config.saiPath)) {
+        return app.quit()
+      }
+    }
+    cp.spawn(config.saiPath, { detached: true }).unref()
+    fs.writeFileSync(configPath, JSON.stringify(config, null, 2))
+  }
+
+  setInterval(_ => {
+    if (hook.isOK()) {
+      hook.errorCount = 0
+    }
+    else if ((hook.errorCount = (hook.errorCount || 0) + 1) < 5) {
+      hook.start()
     }
     else {
-      if (!config.saiPath) {
-        const saiPath = dialog.showOpenDialog({
-          title: 'where is sai2.exe?',
-          filters: [{ name: 'sai2.exe', extensions: ['exe'] }],
-        })[0]
-        if (!saiPath && !fs.existsSync(saiPath)) {
-          return app.quit()
-        }
-        else {
-          config.saiPath = saiPath
-        }
-      }
-      cp.execFile(config.saiPath, err => {
-        if (err) {
-          dialog.showErrorBox('Error', 'start sai2.exe failed')
-          delete config.saiPath
-          fs.writeFileSync(configPath, JSON.stringify(config, null, 2))
-          app.quit()
-        }
-        else {
-          fs.writeFileSync(configPath, JSON.stringify(config, null, 2))
-          hook.isPrepared = true
-        }
-      })
+      app.quit(console.log('sai seems closed. quit.'))
     }
-  }
+  }, 1000)
 })
 
 app.once('window-all-closed', _ => {
-  hook.destroy()
   app.quit()
-})
-
-hook.on('hook-status', isOK => {
-  if (hook.isPrepared &&
-      (hook.errorCount = isOK ? 0 : (hook.errorCount || 0) + 1) > 5) {
-    console.log('unable to find sai. quit.')
-    hook.destroy()
-    app.quit()
-  }
 })
 
 hook.on('key-down', key => {
@@ -113,12 +109,20 @@ hook.on('key-up', key => {
   win && win.webContents.send('hook-key-up', key)
 })
 
-hook.on('left-down', key => {
-  win && win.webContents.send('hook-left-down', key)
+hook.on('mouse-down', key => {
+  win && win.webContents.send('hook-mouse-down', key)
 })
 
-hook.on('left-up', key => {
-  win && win.webContents.send('hook-left-up', key)
+hook.on('mouse-up', key => {
+  win && win.webContents.send('hook-mouse-up', key)
+})
+
+hook.on('pen-down', isReversed => {
+  win && win.webContents.send('hook-pen-down', key)
+})
+
+hook.on('pen-up', isReversed => {
+  win && win.webContents.send('hook-pen-up', key)
 })
 
 hook.on('touch-start', (x, y) => {

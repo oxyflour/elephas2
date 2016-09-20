@@ -11,11 +11,13 @@ typedef LPARAM HSV;
 using std::map;
 
 class SaiConnector {
-private:
+protected:
   map<int, HWND> wnds;
 
 public:
-  SaiConnector();
+  void connect();
+
+  HWND getCanvasParent();
 
   double getCanvasZoom();
   void setCanvasZoom(double scale);

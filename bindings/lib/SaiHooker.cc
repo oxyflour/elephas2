@@ -5,7 +5,6 @@ const char* SAI_ROOT_WINDOW = "sflRootWindow";
 SaiHooker::SaiHooker(HOOKPROC GetMsgProc, HOOKPROC CallWndRetProc):
   GetMsgProc(GetMsgProc), CallWndRetProc(CallWndRetProc) {
   syncEvent = CreateEvent(NULL, FALSE, FALSE, NULL);
-  hook();
 }
 
 SaiHooker::~SaiHooker() {
@@ -14,17 +13,18 @@ SaiHooker::~SaiHooker() {
 }
 
 void SaiHooker::hook() {
-  saiMain = FindWindowEx(NULL, NULL, SAI_ROOT_WINDOW, NULL);
+  unhook();
 
+  saiMain = FindWindowEx(NULL, NULL, SAI_ROOT_WINDOW, NULL);
   if (!saiMain) {
     printf("find sai main window failed (Error: %d)\n", GetLastError());
   }
   else {
-    printf("got sai main window (Handle: %x)\n", saiMain);
+    auto threadId = GetWindowThreadProcessId(saiMain, NULL);
+    printf("got sai main window (Handle: %x, Thread %x)\n", saiMain, threadId);
 
     HMODULE hInst;
     GetModuleHandleEx(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS, (char *) GetMsgProc, &hInst);
-    auto threadId = GetWindowThreadProcessId(saiMain, NULL);
 
     msgHook = SetWindowsHookEx(WH_GETMESSAGE, GetMsgProc, hInst, threadId);
     if (!msgHook) {
@@ -50,13 +50,7 @@ void SaiHooker::unhook() {
   }
 }
 
-bool SaiHooker::check() {
-  if (IsWindow(saiMain) && msgHook && wndHook) {
-    return true;
-  }
-  
-  unhook();
-  hook();
+bool SaiHooker::isOK() {
   return IsWindow(saiMain) && msgHook && wndHook;
 }
 

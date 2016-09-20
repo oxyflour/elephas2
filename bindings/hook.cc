@@ -7,12 +7,11 @@
 
 #include <windows.h>
 #include <winuser.h>
+#include <commctrl.h>
 
 #include "lib/EventEmitter.h"
-#include "lib/SaiHooker.h"
 #include "lib/SaiConnector.h"
-#include "lib/ManipulationEventSink.h"
-#include "lib/utils.h"
+#include "lib/SaiHooker.h"
 
 using v8::FunctionCallbackInfo;
 using v8::Value;
@@ -31,6 +30,7 @@ const static char* WINDOW_TITLE_UUID = "HOOK-WINDOW-RECEIVER-355303E8-C607-4F88-
 static int commandIndex = 0;
 const static UINT WM_USER_DEBUG           = WM_USER + WM_COMMAND + commandIndex ++;
 const static UINT WM_HOOK_STATUS          = WM_USER + WM_COMMAND + commandIndex ++;
+const static UINT WM_CHECK_CONN           = WM_USER + WM_COMMAND + commandIndex ++;
 const static UINT WM_SAI_CANVAS_ZOOM      = WM_USER + WM_COMMAND + commandIndex ++;
 const static UINT WM_SAI_CANVAS_ROTATION  = WM_USER + WM_COMMAND + commandIndex ++;
 const static UINT WM_SAI_COLOR_HSV        = WM_USER + WM_COMMAND + commandIndex ++;
@@ -42,21 +42,24 @@ HWND thisMsgWnd;
 LRESULT CALLBACK GetMsgProc(int nCode, WPARAM wParam, LPARAM lParam) {
   if (nCode == HC_ACTION) {
     auto* msg = (MSG *)lParam;
-    if (!IsTouchWindow(msg->hwnd, 0)) {
-      InitTouchWindow(msg->hwnd);
+    if (!thisConnector) {
+      thisConnector = new SaiConnector();
     }
     if (!IsWindow(thisMsgWnd)) {
       thisMsgWnd = FindWindow(NULL, WINDOW_TITLE_UUID);
     }
-    if (!thisConnector) {
-      thisConnector = new SaiConnector();
+    auto hCanvas = thisConnector->getCanvasParent();
+    if (hCanvas && GetParent(msg->hwnd) == hCanvas && !GetProp(msg->hwnd, "sk")) {
+      SetProp(msg->hwnd, "sk", (HANDLE) 1);
+      RegisterPointerInputTarget(hCanvas, PT_TOUCH);
+      PostMessage(thisMsgWnd, WM_USER_DEBUG, 1, 1);
     }
     if (msg->message == WM_KEYDOWN || msg->message == WM_KEYUP ||
       msg->message == WM_LBUTTONDOWN || msg->message == WM_LBUTTONUP) {
       PostMessage(thisMsgWnd, WM_USER + msg->message, msg->wParam, msg->lParam);
     }
-    else if (msg->message >= WM_MANIP_BEGIN && msg->message <= WM_MANIP_END) {
-      PostMessage(thisMsgWnd, msg->message, msg->wParam, msg->lParam);
+    else if (msg->message == WM_CHECK_CONN) {
+      thisConnector->connect();
     }
     else if (msg->message == WM_SAI_CANVAS_ZOOM) {
       msg->wParam ?
@@ -83,9 +86,7 @@ LRESULT CALLBACK GetMsgProc(int nCode, WPARAM wParam, LPARAM lParam) {
 LRESULT CALLBACK CallWndRetProc(int nCode, WPARAM wParam, LPARAM lParam) {
   if (nCode == HC_ACTION) {
     auto* cs = (CWPRETSTRUCT *)lParam;
-    if (cs->message == WM_TOUCH) {
-      MaintainTouchGesture((HTOUCHINPUT) cs->lParam, LOWORD(cs->wParam));
-    }
+    // ...
   }
   return CallNextHookEx(NULL, nCode, wParam, lParam);
 }
@@ -95,7 +96,8 @@ SaiHooker* thisHook;
 
 // runs in new uv thread
 VOID CALLBACK TimerProc(HWND hWnd, UINT uMsg, UINT_PTR idEvent, DWORD dwTime) {
-  thisEmitter->trigger(WM_HOOK_STATUS, 0, thisHook->check());
+  thisHook->postMessage(WM_CHECK_CONN, 0, 0);
+  thisEmitter->trigger(WM_HOOK_STATUS, 0, thisHook->isOK());
 }
 
 // runs in new uv thread
@@ -104,11 +106,9 @@ LRESULT CALLBACK WindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam) 
     printf("got debug WPARAM: %Ix, LPARAM: %Ix\n", wParam, lParam);
   }
   else if (uMsg == WM_USER + WM_KEYDOWN || uMsg == WM_USER + WM_KEYUP ||
-      uMsg == WM_USER + WM_LBUTTONDOWN || uMsg == WM_USER + WM_LBUTTONUP) {
+      uMsg == WM_USER + WM_LBUTTONDOWN || uMsg == WM_USER + WM_LBUTTONUP ||
+      uMsg == WM_USER + WM_POINTERDOWN || uMsg == WM_USER + WM_POINTERUP) {
     thisEmitter->trigger(uMsg - WM_USER, wParam, lParam);
-  }
-  else if (uMsg >= WM_MANIP_BEGIN && uMsg <= WM_MANIP_END) {
-    thisEmitter->trigger(uMsg, wParam, lParam);
   }
   else if (uMsg == WM_SAI_CANVAS_ZOOM ||
       uMsg == WM_SAI_CANVAS_ROTATION ||
@@ -130,14 +130,16 @@ VOID MsgHandler(UINT uMsg, WPARAM wParam, LPARAM lParam) {
     thisEmitter->emit(uMsg == WM_KEYDOWN ? "key-down" : "key-up", args, 1);
   }
   else if (uMsg == WM_LBUTTONDOWN || uMsg == WM_LBUTTONUP) {
-    thisEmitter->emit(uMsg == WM_LBUTTONDOWN ? "left-down" : "left-up", NULL, 0);
+    thisEmitter->emit(uMsg == WM_LBUTTONDOWN ? "mouse-down" : "mouse-up", NULL, 0);
   }
-  else if (uMsg == WM_MANIP_BEGIN || uMsg == WM_MANIP_END) {
+  else if (uMsg == WM_POINTERDOWN || uMsg == WM_POINTERUP) {
+    printf("got point %Ix: %Ix, LPARAM: %Ix\n", uMsg, wParam, lParam);
     Local<Value> args[] = {
-      Number::New(isolate, *((FLOAT *) &wParam)),
-      Number::New(isolate, *((FLOAT *) &lParam)),
+      Boolean::New(isolate, lParam & PEN_FLAG_INVERTED),
+      Boolean::New(isolate, lParam & PEN_FLAG_ERASER),
+      Boolean::New(isolate, lParam & PEN_FLAG_BARREL),
     };
-    thisEmitter->emit(uMsg == WM_MANIP_BEGIN ? "touch-start" : "touch-end", args, 2);
+    thisEmitter->emit(uMsg == WM_POINTERDOWN ? "pen-down" : "pen-up", args, 3);
   }
 }
 
@@ -150,7 +152,11 @@ void off(const FunctionCallbackInfo<Value>& args) {
 }
 
 void isOK(const FunctionCallbackInfo<Value>& args) {
-  args.GetReturnValue().Set(thisHook->check());
+  args.GetReturnValue().Set(thisHook->isOK());
+}
+
+void start(const FunctionCallbackInfo<Value>& args) {
+  thisHook->hook();
 }
 
 void destroy(const FunctionCallbackInfo<Value>& args) {
@@ -213,9 +219,11 @@ void start(void *arg) {
   // so DO NOT initialize it in the global context
   thisHook = new SaiHooker(GetMsgProc, CallWndRetProc);
 
+  HMODULE hInst;
+  GetModuleHandleEx(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS, (char *) GetMsgProc, &hInst);
+
   auto hWnd = CreateWindow("STATIC", WINDOW_TITLE_UUID, 0,
-    0, 0, 0, 0,
-    HWND_MESSAGE, NULL, GetModuleFromAddress((char *) GetMsgProc), NULL);
+    0, 0, 0, 0, HWND_MESSAGE, NULL, hInst, NULL);
   SetTimer(NULL, 0, CHECK_HOOK_INTERVAL, TimerProc);
   SetWindowLongPtr(hWnd, GWLP_WNDPROC, (LONG_PTR) WindowProc);
 
@@ -240,6 +248,7 @@ void init(Local<Object> exports) {
 
   NODE_SET_METHOD(exports, "isOK", isOK);
 
+  NODE_SET_METHOD(exports, "start", start);
   // should offer this `destroy` method as node::AtExit is not really working
   // see https://github.com/nodejs/node/issues/1894
   NODE_SET_METHOD(exports, "destroy", destroy);

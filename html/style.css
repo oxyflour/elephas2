@@ -67,6 +67,7 @@ body.is-rotating,
 body.is-rotating * {
   cursor: nwse-resize;
 }
+body.is-transparent .main,
 body.is-manipulating .main {
   opacity: 0;
 }

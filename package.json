@@ -6,11 +6,13 @@
   "dependencies": {
     "nan": "^2.4.0"
   },
-  "devDependencies": {},
+  "devDependencies": {
+    "mkdirp": "^0.5.1"
+  },
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "install": "node-gyp rebuild",
-    "build": "node-gyp rebuild --target=1.3.5 --arch=x64 --dist-url=https://atom.io/download/atom-shell"
+    "build": "build.bat"
   },
   "keywords": [],
   "author": "",

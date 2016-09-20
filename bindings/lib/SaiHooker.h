@@ -21,9 +21,9 @@ public:
   SaiHooker(HOOKPROC GetMsgProc, HOOKPROC CallWndRetProc);
   ~SaiHooker();
 
+  bool isOK();
   void hook();
   void unhook();
-  bool check();
 
   HWND getSaiMain();
   void postMessage(UINT uMsg, WPARAM wParam, LPARAM lParam);
