@@ -93,35 +93,38 @@ void(function() {
   }
 
   let triggerKeyCode = 'Q'.charCodeAt(0),
-    triggerKeyDown = false
+    triggerKeyDown = false,
+    mouseLeftDown = false
 
   ipcRenderer.on('hook-key-down', (evt, key) => {
-    if (key === triggerKeyCode && !triggerKeyDown && (triggerKeyDown = true)) {
+    if (key === triggerKeyCode &&
+        !triggerKeyDown && (triggerKeyDown = true)) {
       showWindow()
     }
   })
 
   ipcRenderer.on('hook-key-up', (evt, key) => {
-    if (key === triggerKeyCode && triggerKeyDown && !(triggerKeyDown = false)) {
-      hideWindow()
-    }
-  })
-
-  ipcRenderer.on('hook-pen-down', (evt, isReversed) => {
-    if (isReversed && !triggerKeyDown && (triggerKeyDown = true)) {
-      showWindow()
-    }
-  })
-
-  ipcRenderer.on('hook-pen-up', (evt, isReversed) => {
-    if (isReversed && triggerKeyDown && !(triggerKeyDown = false)) {
+    if (key === triggerKeyCode &&
+        triggerKeyDown && !(triggerKeyDown = false)) {
       hideWindow()
     }
   })
 
   window.addEventListener('keyup', evt => {
     if (evt.keyCode === triggerKeyCode &&
-        triggerKeyDown && !(triggerKeyDown = false)) {
+        triggerKeyDown && !(triggerKeyDown = false) &&
+        !mouseLeftDown) {
+      hideWindow()
+    }
+  })
+
+  window.addEventListener('mousedown', evt => {
+    mouseLeftDown = true
+  })
+
+  window.addEventListener('mouseup', evt => {
+    if (mouseLeftDown && !(mouseLeftDown = false) &&
+        !triggerKeyDown) {
       hideWindow()
     }
   })
