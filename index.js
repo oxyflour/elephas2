@@ -92,7 +92,8 @@ app.once('ready', _ => {
       hook.start()
     }
     else {
-      app.quit(console.log('sai seems closed. quit.'))
+      console.log('sai seems closed. quit.')
+      app.quit()
     }
   }, 1000)
 })

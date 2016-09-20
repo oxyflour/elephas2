@@ -194,9 +194,6 @@ void(function() {
   attachAccessory(document.getElementById('moveLayer'), 'CONTROL')
 })()
 
-const R2A = 180 / Math.PI,
-  A2R = Math.PI / 180
-
 function range(n) {
   return Array(n).fill(0).map((_, i) => i)
 }
@@ -252,8 +249,8 @@ void(function() {
 
   const d = r - ringWidth / 2,
     p1 = pt(d, 0),
-    p2 = pt(d, 120*A2R),
-    p3 = pt(d, 240*A2R)
+    p2 = pt(d, 120 / 180 * Math.PI),
+    p3 = pt(d, 240 / 180 * Math.PI)
 
   // http://stackoverflow.com/questions/18206361/svg-multiple-color-on-circle-stroke
   document.getElementById('colorPickerContainer').innerHTML =
@@ -262,8 +259,8 @@ void(function() {
     ${ringStepPoints.map(([p1, p2], i) =>
       `<linearGradient id="rainbow${i}" gradientUnits="userSpaceOnUse"
         x1="${p1.x}" y1="${p1.y}" x2="${p2.x}" y2="${p2.y}">
-        <stop offset="0%"   stop-color="hsl(${p1.a*R2A}, 100%, 50%)" />
-        <stop offset="100%" stop-color="hsl(${p2.a*R2A}, 100%, 50%)" />
+        <stop offset="0%"   stop-color="hsl(${p1.a * 180 / Math.PI}, 100%, 50%)" />
+        <stop offset="100%" stop-color="hsl(${p2.a * 180 / Math.PI}, 100%, 50%)" />
       </linearGradient>`
     ).join('')}
     </defs>
@@ -382,7 +379,7 @@ void(function() {
       v = { x: x - c.x, y: y - c.y },
       r = hypot(v.x, v.y),
       a = Math.atan2(v.y, v.x)
-    return pt(r * pickerWidth / rect.width, a - currentHSV.h*A2R)
+    return pt(r * pickerWidth / rect.width, a - currentHSV.h / 180 * Math.PI)
   }
 
   function setSVFromPoint(px, py) {
@@ -393,7 +390,7 @@ void(function() {
 
   function setHueFromPoint(px, py) {
     const { a } = mapXYtoLocal(px, py),
-      h = a * R2A + currentHSV.h
+      h = a * 180 / Math.PI + currentHSV.h
     setHSV(h, currentHSV.s, currentHSV.v)
   }
 
