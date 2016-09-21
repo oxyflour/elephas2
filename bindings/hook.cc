@@ -24,13 +24,11 @@ using v8::Boolean;
 
 using node::AtExit;
 
-const static int CHECK_HOOK_INTERVAL = 1000;
 const static char* WINDOW_TITLE_UUID = "HOOK-WINDOW-RECEIVER-355303E8-C607-4F88-9E32-FD225F2B7C8B";
 
 static int commandIndex = 0;
 const static UINT WM_USER_DEBUG           = WM_USER + WM_COMMAND + commandIndex ++;
-const static UINT WM_HOOK_STATUS          = WM_USER + WM_COMMAND + commandIndex ++;
-const static UINT WM_CHECK_CONN           = WM_USER + WM_COMMAND + commandIndex ++;
+const static UINT WM_SAI_TRY_CONNECT      = WM_USER + WM_COMMAND + commandIndex ++;
 const static UINT WM_SAI_CANVAS_ZOOM      = WM_USER + WM_COMMAND + commandIndex ++;
 const static UINT WM_SAI_CANVAS_ROTATION  = WM_USER + WM_COMMAND + commandIndex ++;
 const static UINT WM_SAI_COLOR_HSV        = WM_USER + WM_COMMAND + commandIndex ++;
@@ -48,17 +46,11 @@ LRESULT CALLBACK GetMsgProc(int nCode, WPARAM wParam, LPARAM lParam) {
     if (!IsWindow(thisMsgWnd)) {
       thisMsgWnd = FindWindow(NULL, WINDOW_TITLE_UUID);
     }
-    auto hCanvas = thisConnector->getCanvasParent();
-    if (hCanvas && GetParent(msg->hwnd) == hCanvas && !GetProp(msg->hwnd, "sk")) {
-      SetProp(msg->hwnd, "sk", (HANDLE) 1);
-      RegisterPointerInputTarget(hCanvas, PT_TOUCH);
-      PostMessage(thisMsgWnd, WM_USER_DEBUG, 1, 1);
-    }
     if (msg->message == WM_KEYDOWN || msg->message == WM_KEYUP ||
       msg->message == WM_LBUTTONDOWN || msg->message == WM_LBUTTONUP) {
       PostMessage(thisMsgWnd, WM_USER + msg->message, msg->wParam, msg->lParam);
     }
-    else if (msg->message == WM_CHECK_CONN) {
+    else if (msg->message == WM_SAI_TRY_CONNECT) {
       thisConnector->connect();
     }
     else if (msg->message == WM_SAI_CANVAS_ZOOM) {
@@ -95,12 +87,6 @@ EventEmitter* thisEmitter;
 SaiHooker* thisHook;
 
 // runs in new uv thread
-VOID CALLBACK TimerProc(HWND hWnd, UINT uMsg, UINT_PTR idEvent, DWORD dwTime) {
-  thisHook->postMessage(WM_CHECK_CONN, 0, 0);
-  thisEmitter->trigger(WM_HOOK_STATUS, 0, thisHook->isOK());
-}
-
-// runs in new uv thread
 LRESULT CALLBACK WindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
   if (uMsg == WM_USER_DEBUG) {
     printf("got debug WPARAM: %Ix, LPARAM: %Ix\n", wParam, lParam);
@@ -121,11 +107,7 @@ LRESULT CALLBACK WindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam) 
 // runs in main V8 thread
 VOID MsgHandler(UINT uMsg, WPARAM wParam, LPARAM lParam) {
   auto *isolate = Isolate::GetCurrent();
-  if (uMsg == WM_HOOK_STATUS) {
-    Local<Value> args[] = { Boolean::New(isolate, lParam) };
-    thisEmitter->emit("hook-status", args, 1);
-  }
-  else if (uMsg == WM_KEYDOWN || uMsg == WM_KEYUP) {
+  if (uMsg == WM_KEYDOWN || uMsg == WM_KEYUP) {
     Local<Value> args[] = { Number::New(isolate, (double) wParam) };
     thisEmitter->emit(uMsg == WM_KEYDOWN ? "key-down" : "key-up", args, 1);
   }
@@ -157,6 +139,7 @@ void isOK(const FunctionCallbackInfo<Value>& args) {
 
 void start(const FunctionCallbackInfo<Value>& args) {
   thisHook->hook();
+  thisHook->postMessage(WM_SAI_TRY_CONNECT, 0, 0);
 }
 
 void destroy(const FunctionCallbackInfo<Value>& args) {
@@ -224,7 +207,6 @@ void start(void *arg) {
 
   auto hWnd = CreateWindow("STATIC", WINDOW_TITLE_UUID, 0,
     0, 0, 0, 0, HWND_MESSAGE, NULL, hInst, NULL);
-  SetTimer(NULL, 0, CHECK_HOOK_INTERVAL, TimerProc);
   SetWindowLongPtr(hWnd, GWLP_WNDPROC, (LONG_PTR) WindowProc);
 
   MSG msg;
@@ -242,16 +224,14 @@ void init(Local<Object> exports) {
   uv_thread_t thread;
   uv_thread_create(&thread, start, NULL);
 
-  // 
-  NODE_SET_METHOD(exports, "on", on);
-  NODE_SET_METHOD(exports, "off", off);
-
   NODE_SET_METHOD(exports, "isOK", isOK);
-
   NODE_SET_METHOD(exports, "start", start);
   // should offer this `destroy` method as node::AtExit is not really working
   // see https://github.com/nodejs/node/issues/1894
   NODE_SET_METHOD(exports, "destroy", destroy);
+
+  NODE_SET_METHOD(exports, "on", on);
+  NODE_SET_METHOD(exports, "off", off);
 
   NODE_SET_METHOD(exports, "activateSaiWindow", activateSaiWindow);
 

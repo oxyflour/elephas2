@@ -46,9 +46,7 @@ static BOOL CALLBACK EnumThreadWndProc(HWND hWnd, LPARAM lParam) {
 }
 
 void SaiConnector::connect() {
-  if (wnds.size() == 0 || !IsWindow(getCanvasParent())) {
-    EnumThreadWindows(GetCurrentThreadId(), EnumThreadWndProc, (LPARAM) &wnds);
-  }
+  EnumThreadWindows(GetCurrentThreadId(), EnumThreadWndProc, (LPARAM) &wnds);
 }
 
 HWND SaiConnector::getCanvasParent() {
