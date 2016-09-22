@@ -1,6 +1,6 @@
 #include "SaiHooker.h"
 
-const char* SAI_ROOT_WINDOW = "sflRootWindow";
+const char* SAI_ROOT_WINDOW = "sfl_window_class";
 
 SaiHooker::SaiHooker(HOOKPROC GetMsgProc, HOOKPROC CallWndRetProc):
   GetMsgProc(GetMsgProc), CallWndRetProc(CallWndRetProc) {
@@ -16,12 +16,15 @@ void SaiHooker::hook() {
   unhook();
 
   saiMain = FindWindowEx(NULL, NULL, SAI_ROOT_WINDOW, NULL);
+  while (saiMain && !IsWindowVisible(saiMain)) {
+    saiMain = FindWindowEx(NULL, saiMain, SAI_ROOT_WINDOW, NULL);
+  }
+
   if (!saiMain) {
     printf("find sai main window failed (Error: %d)\n", GetLastError());
   }
   else {
     auto threadId = GetWindowThreadProcessId(saiMain, NULL);
-    printf("got sai main window (Handle: %x, Thread %x)\n", saiMain, threadId);
 
     HMODULE hInst;
     GetModuleHandleEx(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS, (char *) GetMsgProc, &hInst);
@@ -35,6 +38,9 @@ void SaiHooker::hook() {
     if (!wndHook) {
       printf("register wnd hook failed %d\n", GetLastError());
     }
+
+    printf("got sai main window (Handle: %x, Thread %x)\nhook ok (%x, %x, Error: %d)",
+      saiMain, threadId, msgHook, wndHook, GetLastError());
   }
 }
 

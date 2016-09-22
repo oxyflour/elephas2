@@ -89,7 +89,7 @@ SaiHooker* thisHook;
 // runs in new uv thread
 LRESULT CALLBACK WindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
   if (uMsg == WM_USER_DEBUG) {
-    printf("got debug WPARAM: %Ix, LPARAM: %Ix\n", wParam, lParam);
+    printf("got debug WPARAM: %Ix(%d), LPARAM: %Ix(%d)\n", wParam, wParam, lParam, lParam);
   }
   else if (uMsg == WM_USER + WM_KEYDOWN || uMsg == WM_USER + WM_KEYUP ||
       uMsg == WM_USER + WM_LBUTTONDOWN || uMsg == WM_USER + WM_LBUTTONUP ||

@@ -1,16 +1,34 @@
 #include "SaiConnector.h"
 
-const static int NAV_ZOOM         = 0x2018f;
-const static int NAV_ZOOM_TEXT    = 0x2016f;
-const static int NAV_ROTATE       = 0x20194;
-const static int NAV_ROTATE_TEXT  = 0x20173;
-const static int COLOR_H          = 0x201dc;
-const static int COLOR_H_TEXT     = 0x201dd;
-const static int COLOR_S          = 0x201df;
-const static int COLOR_S_TEXT     = 0x201e0;
-const static int COLOR_V          = 0x201e3;
-const static int COLOR_V_TEXT     = 0x201e4;
-const static int CANVAS_CONTAINER = 0x20184;
+const static int NAV_ZOOM         = 0x201;
+const static int NAV_ZOOM_TEXT    = 0x50d;
+const static int NAV_ROTATE       = 0x202;
+const static int NAV_ROTATE_TEXT  = 0x50e;
+const static int COLOR_H          = 0x421;
+const static int COLOR_S          = 0x422;
+const static int COLOR_V          = 0x423;
+const static int COLOR_RGB        = 0x601;
+const static int CANVAS_CONTAINER = 0x800;
+
+// https://en.wikipedia.org/wiki/HSL_and_HSV
+static HSV RGB2HSV(BYTE r, BYTE g, BYTE b) {
+  auto R = r / 255.0;
+  auto G = g / 255.0;
+  auto B = b / 255.0;
+  auto M = max(max(R, G), B);
+  auto m = min(min(R, G), B);
+  auto C = M - m;
+  auto H =
+    C == 0 ? 0 :
+    M == R ? fmod((G - B) / C, 6) :
+    M == G ? (B - R) / C + 2 :
+    M == B ? (R - G) / C + 4 :
+    0;
+  auto h = H * 60.0;
+  auto v = M;
+  auto s = v ? C / v : 0;
+  return MakeHSV(h, s * 255, v * 255);
+}
 
 static auto getWindowTextAsNumber(HWND hWnd) {
   char szBuf[32];
@@ -50,7 +68,7 @@ void SaiConnector::connect() {
 }
 
 HWND SaiConnector::getCanvasParent() {
-  return GetWindow(wnds[CANVAS_CONTAINER], GW_CHILD);
+  return wnds[CANVAS_CONTAINER];
 }
 
 double SaiConnector::getCanvasZoom() {
@@ -58,8 +76,8 @@ double SaiConnector::getCanvasZoom() {
 }
 
 void SaiConnector::setCanvasZoom(double scale) {
-  auto fx = 0.5 * log(scale / 100) / log(2) / (scale < 100 ? 7 : 5) + 0.5;
-  simulateClickInWindow(wnds[NAV_ZOOM], fx, 0.5);
+  auto fx = 0.5 * log(scale / 100) / log(2) / 5 + 0.5;
+  simulateClickInWindow(wnds[NAV_ZOOM], fx, 0.5, 3);
 }
 
 double SaiConnector::getCanvasRotation() {
@@ -68,18 +86,18 @@ double SaiConnector::getCanvasRotation() {
 
 void SaiConnector::setCanvasRotation(double angle) {
   auto fx = (angle > 180 ? angle - 360 : angle) / 360 + 0.5;
-  simulateClickInWindow(wnds[NAV_ROTATE], fx, 0.5);
+  simulateClickInWindow(wnds[NAV_ROTATE], fx, 0.5, 3);
 }
 
 HSV SaiConnector::getColorHSV() {
-  auto h = getWindowTextAsNumber(wnds[COLOR_H_TEXT]);
-  auto s = getWindowTextAsNumber(wnds[COLOR_S_TEXT]) * 255 / 100;
-  auto v = getWindowTextAsNumber(wnds[COLOR_V_TEXT]) * 255 / 100;
-  return MakeHSV(h, s, v);
+  auto hdc = GetDC(wnds[COLOR_RGB]);
+  auto rgb = GetPixel(hdc, 20, 20);
+  ReleaseDC(wnds[COLOR_RGB], hdc);
+  return RGB2HSV(GetRValue(rgb), GetGValue(rgb), GetBValue(rgb));
 }
 
 void SaiConnector::setColorHSV(HSV lParam) {
-  simulateClickInWindow(wnds[COLOR_H], GetHValue(lParam) / 360.0, 0.5, 3.5, 3.5);
-  simulateClickInWindow(wnds[COLOR_S], GetSValue(lParam) / 255.0, 0.5, 3.5, 3.5);
-  simulateClickInWindow(wnds[COLOR_V], GetVValue(lParam) / 255.0, 0.5, 3.5, 3.5);
+  simulateClickInWindow(wnds[COLOR_H], GetHValue(lParam) / 360.0, 0.5, 14, 34);
+  simulateClickInWindow(wnds[COLOR_S], GetSValue(lParam) / 255.0, 0.5, 14, 34);
+  simulateClickInWindow(wnds[COLOR_V], GetVValue(lParam) / 255.0, 0.5, 14, 34);
 }
