@@ -17,21 +17,6 @@ function throttled(func, time) {
   }
 }
 
-function accumThrottled(func, time) {
-  const accuDelta = { x: 0, y: 0 }
-  const moveXY = throttled(() => {
-    if (accuDelta.x || accuDelta.y) {
-      func.call(null, accuDelta.x, accuDelta.y)
-      accuDelta.x = accuDelta.y = 0
-    }
-  }, time)
-  return (dx, dy) => {
-    accuDelta.x += dx
-    accuDelta.y += dy
-    moveXY()
-  }
-}
-
 const CTRL_WND_OPTS = {
   frame: false,
   transparent: true,
@@ -45,7 +30,7 @@ const ASK_START_SAI = {
   type: 'question',
   title: 'find sai2 failed',
   message: 'SAI2 seems not running. Would you like to start it?',
-  buttons: ['OK', 'OK and Remember', 'Cancel'],
+  buttons: ['OK', 'Cancel'],
 }
 
 const FIND_SAI_DIAG = {
@@ -67,11 +52,8 @@ app.once('ready', _ => {
       config = fs.existsSync(configPath) ? require(configPath) : { }
     if (!config.autoStart) {
       const askStartResult = dialog.showMessageBox(ASK_START_SAI)
-      if (askStartResult === 2) {
+      if (askStartResult !== 0) {
         return app.quit()
-      }
-      else if (askStartResult === 1) {
-        config.autoStart = true
       }
     }
     if (!config.saiPath) {

@@ -119,7 +119,9 @@ void(function() {
   })
 
   window.addEventListener('mousedown', evt => {
-    mouseLeftDown = true
+    if (!mouseLeftDown && (mouseLeftDown = true)) {
+      // ...
+    }
   })
 
   window.addEventListener('mouseup', evt => {
