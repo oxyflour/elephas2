@@ -39,7 +39,7 @@ void SaiHooker::hook() {
       printf("register wnd hook failed %d\n", GetLastError());
     }
 
-    printf("got sai main window (Handle: %x, Thread %x)\nhook ok (%x, %x, Error: %d)",
+    printf("got sai main window (Handle: %x, Thread %x)\nhook ok (%x, %x, Error: %d)\n",
       saiMain, threadId, msgHook, wndHook, GetLastError());
   }
 }
