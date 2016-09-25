@@ -1,4 +1,4 @@
-node-gyp rebuild --target=1.3.5 --arch=ia32 --dist-url=https://atom.io/download/atom-shell && ^
+node-gyp rebuild --target=1.3.5 --arch=x64 --dist-url=https://atom.io/download/atom-shell && ^
 del /S /Q tmp && ^
 mkdirp tmp\build\Release && ^
 xcopy /Y *.js tmp\ && ^

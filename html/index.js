@@ -69,8 +69,8 @@ void(function() {
     document.body.classList.add('show')
     if (!window.isShown) {
       const { x, y } = ipcRenderer.sendSync('get-cursor-position')
-      window.resizeTo(360, 360)
-      window.moveTo(x - 360 / 2, y - 360 / 2)
+      window.resizeTo(320, 320)
+      window.moveTo(x - 320 / 2, y - 320 / 2)
       window.dispatchEvent(new Event('before-window-shown'))
       ipcRenderer.send('show-window', true)
       window.isShown = true
@@ -94,6 +94,8 @@ void(function() {
 
   let triggerKeyCode = 'Q'.charCodeAt(0),
     triggerKeyDown = false,
+    triggerPenButton = 'inverted',
+    triggerButtonDown = false,
     mouseLeftDown = false
 
   ipcRenderer.on('hook-key-down', (evt, key) => {
@@ -106,7 +108,21 @@ void(function() {
   ipcRenderer.on('hook-key-up', (evt, key) => {
     if (key === triggerKeyCode &&
         triggerKeyDown && !(triggerKeyDown = false)) {
-      hideWindow()
+      !triggerButtonDown && !mouseLeftDown && hideWindow()
+    }
+  })
+
+  ipcRenderer.on('hook-pen-button-down', (evt, key) => {
+    if (key === triggerPenButton &&
+        !triggerButtonDown && (triggerButtonDown = true)) {
+      showWindow()
+    }
+  })
+
+  ipcRenderer.on('hook-pen-button-up', (evt, key) => {
+    if (key === triggerPenButton &&
+        triggerButtonDown && !(triggerButtonDown = false)) {
+      !triggerKeyDown && !mouseLeftDown && hideWindow()
     }
   })
 
@@ -114,7 +130,7 @@ void(function() {
     if (evt.keyCode === triggerKeyCode &&
         triggerKeyDown && !(triggerKeyDown = false) &&
         !mouseLeftDown) {
-      hideWindow()
+      !triggerButtonDown && hideWindow()
     }
   })
 
@@ -125,10 +141,19 @@ void(function() {
   })
 
   window.addEventListener('mouseup', evt => {
-    if (mouseLeftDown && !(mouseLeftDown = false) &&
-        !triggerKeyDown) {
-      hideWindow()
+    if (mouseLeftDown && !(mouseLeftDown = false)) {
+      !triggerKeyDown && !triggerButtonDown && hideWindow()
     }
+  })
+
+  ;[].forEach.call(document.querySelectorAll('[shortcut-keys]'), elem => {
+    const keys = elem.getAttribute('shortcut-keys').split(' ').filter(k => k)
+    elem.addEventListener('click', e => {
+      hideWindow()
+      ipcRenderer.send('activate-sai-window')
+      keys.forEach(key => ipcRenderer.send('simulate-key', key, true))
+      keys.reverse().forEach(key => ipcRenderer.send('simulate-key', key, false))
+    })
   })
 })()
 
@@ -139,7 +164,7 @@ void(function() {
     clearTimeout(hideControl.debounce)
     hideControl.debounce = setTimeout(_ => {
       document.body.classList.remove('is-manipulating', 'is-zooming', 'is-rotating')
-    }, 500)
+    }, 300)
   }
 
   window.addEventListener('before-window-shown', evt => {
@@ -147,7 +172,7 @@ void(function() {
     document.body.classList.remove('is-manipulating', 'is-zooming', 'is-rotating')
   })
 
-  attachDraggable(document.body, (evt, elem) => {
+  attachDraggable(document.getElementById('manipCanvas'), (evt, elem) => {
     const { x, y } = ipcRenderer.sendSync('get-cursor-position')
     elem.mode = ''
     elem.scale = ipcRenderer.sendSync('sai-canvas-zoom')
@@ -181,10 +206,9 @@ void(function() {
     }
   }, (evt, elem) => {
     hideControl()
-  }, (evt, elem) => {
-    return evt.target !== elem
   })
 
+  /*
   attachDraggable(document.getElementById('moveControl'), (evt, elem) => {
     document.body.classList.add('is-moving')
     elem.start = ipcRenderer.sendSync('get-cursor-position')
@@ -195,6 +219,7 @@ void(function() {
   }, (evt, elem) => {
     document.body.classList.remove('is-moving')
   })
+  */
 
   attachAccessory(document.getElementById('moveLayer'), 'CONTROL')
 })()
@@ -324,6 +349,7 @@ void(function() {
     cpTriangle = document.getElementById('colorPickerTriangle'),
     cpHueRing = document.getElementById('colorPickerRing'),
     cpColor = document.getElementById('colorPickerColor'),
+    cpColorCompare = document.getElementById('colorPickerCompare'),
 
     matrixValues = [
       x => ` 1 0 0 0 0 ${x} 0 0 0 0 0 0 0 0 0 0 0 0 0 1`,
@@ -416,6 +442,8 @@ void(function() {
   window.addEventListener('before-window-shown', evt => {
     const { h, s, v } = ipcRenderer.sendSync('sai-color-hsv')
     setHSV(h, s, v)
+    const c = hsv2hsl(h, s, v)
+    cpColorCompare.style.background = `hsl(${c.h}, ${c.s * 100}%, ${c.l * 100}%)`
   })
 })()
 

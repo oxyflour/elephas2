@@ -56,12 +56,6 @@ LRESULT CALLBACK GetMsgProc(int nCode, WPARAM wParam, LPARAM lParam) {
     if (!thisConnector) {
       thisConnector = new SaiConnector();
     }
-    if (GetParent(msg->hwnd) == thisConnector->getCanvasParent() &&
-        !GetProp(msg->hwnd, "elephas2_canvas_init")) {
-      SetProp(msg->hwnd, "elephas2_canvas_init", (HANDLE) 1);
-      auto props = TABLET_DISABLE_FLICKS | TABLET_DISABLE_PRESSANDHOLD | TABLET_DISABLE_FLICKFALLBACKKEYS;
-      SetProp(msg->hwnd, MICROSOFT_TABLETPENSERVICE_PROPERTY, (HANDLE) props);
-    }
     if (msg->message == WM_KEYDOWN || msg->message == WM_KEYUP ||
       msg->message == WM_LBUTTONDOWN || msg->message == WM_LBUTTONUP) {
       PostMessage(thisMsgWnd, WM_USER + msg->message, msg->wParam, msg->lParam);
@@ -75,7 +69,7 @@ LRESULT CALLBACK GetMsgProc(int nCode, WPARAM wParam, LPARAM lParam) {
       if (pt == PT_PEN) {
         POINTER_PEN_INFO pi;
         GetPointerPenInfo(pid, &pi);
-        PostMessage(thisMsgWnd, WM_SAI_PEN_POINTER, msg->message, pi.penMask);
+        PostMessage(thisMsgWnd, WM_SAI_PEN_POINTER, msg->message, pi.penFlags);
       }
       else if (pt == PT_TOUCH) {
         POINTER_TOUCH_INFO pi;
@@ -215,11 +209,8 @@ VOID MsgHandler(UINT uMsg, WPARAM wParam, LPARAM lParam) {
     else if (wParam == 2) {
       key = "eraser";
     }
-    Local<Value> args[] = {
-      String::NewFromUtf8(isolate, key),
-      Boolean::New(isolate, lParam),
-    };
-    thisEmitter->emit("pen-status", args, 2);
+    Local<Value> args[] = { String::NewFromUtf8(isolate, key) };
+    thisEmitter->emit(lParam ? "pen-button-down" : "pen-button-up", args, 1);
   }
 }
 

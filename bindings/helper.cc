@@ -268,37 +268,14 @@ void simulateMouse(const FunctionCallbackInfo<Value>& args) {
   SimulateMouse(x, y, 0, flag);
 }
 
-void queryWindowAt(const FunctionCallbackInfo<Value>& args) {
-  auto x = args[0]->Int32Value();
-  auto y = args[1]->Int32Value();
-
-  POINT pt = { x, y };
-  char szBuf[256];
-  auto isolate = args.GetIsolate();
-  auto ret = Object::New(isolate);
-
-  HWND hWnd = WindowFromPoint(pt);
-  GetClassName(hWnd, szBuf, sizeof(szBuf));
-  ret->Set(
-    String::NewFromUtf8(isolate, "windowClass"),
-    String::NewFromUtf8(isolate, szBuf));
-
-  DWORD threadId;
-  GetWindowThreadProcessId(hWnd, &threadId);
-  HANDLE hProcess = OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, false, threadId);
-  GetModuleFileNameEx(hProcess, NULL, szBuf, sizeof(szBuf));
-  CloseHandle(hProcess);
-  ret->Set(
-    String::NewFromUtf8(isolate, "exeFileName"),
-    String::NewFromUtf8(isolate, PathFindFileName(szBuf)));
-
-  args.GetReturnValue().Set(ret);
+void sleep(const FunctionCallbackInfo<Value>& args) {
+  Sleep(args[0]->Int32Value());
 }
 
 void init(Local<Object> target) {
   NODE_SET_METHOD(target, "simulateKey", simulateKey);
   NODE_SET_METHOD(target, "simulateMouse", simulateMouse);
-  NODE_SET_METHOD(target, "queryWindowAt", queryWindowAt);
+  NODE_SET_METHOD(target, "sleep", sleep);
 }
 
 NODE_MODULE(helper, init);

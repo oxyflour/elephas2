@@ -1,13 +1,17 @@
 #include "SaiConnector.h"
 
-const static int NAV_ZOOM         = 0x201;
-const static int NAV_ZOOM_TEXT    = 0x50d;
-const static int NAV_ROTATE       = 0x202;
-const static int NAV_ROTATE_TEXT  = 0x50e;
-const static int COLOR_H          = 0x421;
-const static int COLOR_S          = 0x422;
-const static int COLOR_V          = 0x423;
-const static int CANVAS_CONTAINER = 0x800;
+const static int NAV_ZOOM_TEXT    = 0x2016f;
+const static int NAV_ROTATE_TEXT  = 0x20173;
+const static int NAV_ZOOM         = 0x2018f;
+const static int NAV_ROTATE       = 0x20194;
+const static int COLOR_H          = 0x201dc;
+const static int COLOR_H_TEXT     = 0x201dd;
+const static int COLOR_S          = 0x201df;
+const static int COLOR_S_TEXT     = 0x201e0;
+const static int COLOR_V          = 0x201e3;
+const static int COLOR_V_TEXT     = 0x201e4;
+const static int COLOR_VIEW_CTRL  = 0x201c2;
+const static int CANVAS_CONTAINER = 0x20184;
 
 static auto getWindowTextAsNumber(HWND hWnd) {
   char szBuf[32];
@@ -42,31 +46,12 @@ static BOOL CALLBACK EnumThreadWndProc(HWND hWnd, LPARAM lParam) {
   return TRUE;
 }
 
-static const int SLIDER_LENGTH = 128;
-static const int SLIDER_OFFSET_X = 15;
-static const int SLIDER_OFFSET_Y = 11;
-static auto getColorSliderPosition(HWND hWnd) {
-  auto hdc = GetDC(hWnd);
-  auto p0 = GetPixel(hdc, SLIDER_OFFSET_X - 1, SLIDER_OFFSET_Y);
-  int i = 0;
-  for (; i < SLIDER_LENGTH; i ++) {
-    auto p1 = GetPixel(hdc, SLIDER_OFFSET_X + i, SLIDER_OFFSET_Y);
-    if (p0 != p1) {
-      break;
-    }
-    else {
-      p0 = p1;
-    }
-  }
-  return i * 1.0 / SLIDER_LENGTH;
-}
-
 void SaiConnector::connect() {
   EnumThreadWindows(GetCurrentThreadId(), EnumThreadWndProc, (LPARAM) &wnds);
 }
 
 HWND SaiConnector::getCanvasParent() {
-  return wnds[CANVAS_CONTAINER];
+  return GetWindow(wnds[CANVAS_CONTAINER], GW_CHILD);
 }
 
 double SaiConnector::getCanvasZoom() {
@@ -74,9 +59,8 @@ double SaiConnector::getCanvasZoom() {
 }
 
 void SaiConnector::setCanvasZoom(double scale) {
-  auto x = log(scale / 100) / log(2);
-  auto y = scale > 100 ? 3.8*x*x + 26*x : 2.6*x*x + 45*x;
-  simulateClickInWindow(wnds[NAV_ZOOM], (y + 165) / 330, 0.5, 4);
+  auto fx = 0.5 * log(scale / 100) / log(2) / (scale < 100 ? 7 : 5) + 0.5;
+  simulateClickInWindow(wnds[NAV_ZOOM], fx, 0.5, 4);
 }
 
 double SaiConnector::getCanvasRotation() {
@@ -89,14 +73,14 @@ void SaiConnector::setCanvasRotation(double angle) {
 }
 
 HSV SaiConnector::getColorHSV() {
-  auto h = getColorSliderPosition(wnds[COLOR_H]) * 360;
-  auto s = getColorSliderPosition(wnds[COLOR_S]) * 255;
-  auto v = getColorSliderPosition(wnds[COLOR_V]) * 255;
+  auto h = getWindowTextAsNumber(wnds[COLOR_H_TEXT]);
+  auto s = getWindowTextAsNumber(wnds[COLOR_S_TEXT]) * 255 / 100;
+  auto v = getWindowTextAsNumber(wnds[COLOR_V_TEXT]) * 255 / 100;
   return MakeHSV(h, s, v);
 }
 
 void SaiConnector::setColorHSV(HSV lParam) {
-  simulateClickInWindow(wnds[COLOR_H], GetHValue(lParam) / 360.0, 0.5, 15, 35);
-  simulateClickInWindow(wnds[COLOR_S], GetSValue(lParam) / 255.0, 0.5, 15, 35);
-  simulateClickInWindow(wnds[COLOR_V], GetVValue(lParam) / 255.0, 0.5, 15, 35);
+  simulateClickInWindow(wnds[COLOR_H], GetHValue(lParam) / 360.0, 0.5, 4);
+  simulateClickInWindow(wnds[COLOR_S], GetSValue(lParam) / 255.0, 0.5, 4);
+  simulateClickInWindow(wnds[COLOR_V], GetVValue(lParam) / 255.0, 0.5, 4);
 }

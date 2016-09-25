@@ -114,11 +114,20 @@ hook.on('mouse-up', key => {
   win && win.webContents.send('hook-mouse-up', key)
 })
 
-hook.on('pen-status', (key, isDown) => {
-  console.log(key, isDown)
+hook.on('pen-button-down', key => {
+  win && win.webContents.send('hook-pen-button-down', key)
 })
 
+hook.on('pen-button-up', key => {
+  win && win.webContents.send('hook-pen-button-up', key)
+})
+
+const tapTicks = { }
+
 hook.on('touch-down', (x, y, n) => {
+  // detect taps
+  tapTicks[n] = Date.now()
+
   if (n != 2) {
     clearTimeout(hook.startManipulation)
     hook.manipulationStatus = null
@@ -131,6 +140,23 @@ hook.on('touch-down', (x, y, n) => {
 })
 
 hook.on('touch-up', (x, y, n) => {
+  // detect taps
+  if (n == 0) {
+    const now = Date.now()
+    for (var i = 0; tapTicks[i + 1] > now - 200; i ++);
+    if (i == 2) {
+      helper.simulateKey('TAB', true)
+      helper.simulateKey('TAB', false)
+    }
+    else if (i == 3) {
+      helper.simulateKey('F11', true)
+      helper.simulateKey('F11', false)
+    }
+    else if (i) {
+      console.log('tap', i)
+    }
+  }
+
   if (n != 2) {
     clearTimeout(hook.startManipulation)
     hook.manipulationStatus = null
@@ -165,14 +191,14 @@ ipcMain.on('simulate-key', (evt, key, isDown) => {
   helper.simulateKey(key, isDown)
 })
 
-hook.setSaiCanvasZoom = throttled(hook.setSaiCanvasZoom.bind(hook), 30)
+hook.setSaiCanvasZoom = throttled(hook.setSaiCanvasZoom.bind(hook), 50)
 ipcMain.on('sai-canvas-zoom', (evt, scale) => {
   scale !== undefined ?
     hook.setSaiCanvasZoom(scale) :
     (evt.returnValue = hook.getSaiCanvasZoom())
 })
 
-hook.setSaiCanvasRotation = throttled(hook.setSaiCanvasRotation.bind(hook), 32)
+hook.setSaiCanvasRotation = throttled(hook.setSaiCanvasRotation.bind(hook), 52)
 ipcMain.on('sai-canvas-rotation', (evt, angle) => {
   angle !== undefined ?
     hook.setSaiCanvasRotation(angle) :

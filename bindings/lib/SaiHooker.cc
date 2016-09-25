@@ -1,6 +1,6 @@
 #include "SaiHooker.h"
 
-const char* SAI_ROOT_WINDOW = "sfl_window_class";
+const char* SAI_ROOT_WINDOW = "sflRootWindow";
 
 SaiHooker::SaiHooker(HOOKPROC GetMsgProc, HOOKPROC CallWndRetProc):
   GetMsgProc(GetMsgProc), CallWndRetProc(CallWndRetProc) {
