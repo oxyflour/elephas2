@@ -7,6 +7,7 @@
         'bindings/lib/EventEmitter.cc',
         'bindings/lib/SaiHooker.cc',
         'bindings/lib/SaiConnector.cc',
+        'bindings/lib/TouchManipulation.cc',
       ],
       'libraries': [ 'user32.lib', 'comctl32.lib' ],
       'include_dirs': [ 'node_modules/nan' ],

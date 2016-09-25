@@ -7,11 +7,14 @@
 
 #include <windows.h>
 #include <winuser.h>
+#include <tchar.h>
 #include <commctrl.h>
+#include <tpcshrd.h>
 
 #include "lib/EventEmitter.h"
 #include "lib/SaiConnector.h"
 #include "lib/SaiHooker.h"
+#include "lib/TouchManipulation.h"
 
 using v8::FunctionCallbackInfo;
 using v8::Value;
@@ -26,29 +29,76 @@ using node::AtExit;
 
 const static char* WINDOW_TITLE_UUID = "HOOK-WINDOW-RECEIVER-355303E8-C607-4F88-9E32-FD225F2B7C8B";
 
-static int commandIndex = 0;
-const static UINT WM_USER_DEBUG           = WM_USER + WM_COMMAND + commandIndex ++;
-const static UINT WM_SAI_TRY_CONNECT      = WM_USER + WM_COMMAND + commandIndex ++;
-const static UINT WM_SAI_CANVAS_ZOOM      = WM_USER + WM_COMMAND + commandIndex ++;
-const static UINT WM_SAI_CANVAS_ROTATION  = WM_USER + WM_COMMAND + commandIndex ++;
-const static UINT WM_SAI_COLOR_HSV        = WM_USER + WM_COMMAND + commandIndex ++;
+const static UINT WM_USER_DEBUG           = WM_USER + WM_COMMAND + 1;
+const static UINT WM_MANIP_START          = WM_USER + WM_COMMAND + 2;
+const static UINT WM_MANIP_MOVE           = WM_USER + WM_COMMAND + 3;
+const static UINT WM_MANIP_FINISH         = WM_USER + WM_COMMAND + 4;
+const static UINT WM_SAI_TRY_CONNECT      = WM_USER + WM_COMMAND + 5;
+const static UINT WM_SAI_CANVAS_ZOOM      = WM_USER + WM_COMMAND + 6;
+const static UINT WM_SAI_CANVAS_ROTATION  = WM_USER + WM_COMMAND + 7;
+const static UINT WM_SAI_COLOR_HSV        = WM_USER + WM_COMMAND + 8;
+const static UINT WM_SAI_PEN_POINTER      = WM_USER + WM_COMMAND + 9;
 
-SaiConnector* thisConnector;
 HWND thisMsgWnd;
+TouchManipulation* thisTouchManip;
+SaiConnector* thisConnector;
 
 // runs in SAI thread
 LRESULT CALLBACK GetMsgProc(int nCode, WPARAM wParam, LPARAM lParam) {
   if (nCode == HC_ACTION) {
     auto* msg = (MSG *)lParam;
+    if (!IsWindow(thisMsgWnd)) {
+      thisMsgWnd = FindWindow(NULL, WINDOW_TITLE_UUID);
+    }
+    if (!thisTouchManip) {
+      thisTouchManip = new TouchManipulation(WM_MANIP_START);
+    }
     if (!thisConnector) {
       thisConnector = new SaiConnector();
     }
-    if (!IsWindow(thisMsgWnd)) {
-      thisMsgWnd = FindWindow(NULL, WINDOW_TITLE_UUID);
+    if (GetParent(msg->hwnd) == thisConnector->getCanvasParent() &&
+        !GetProp(msg->hwnd, "elephas2_canvas_init")) {
+      SetProp(msg->hwnd, "elephas2_canvas_init", (HANDLE) 1);
+      auto props = TABLET_DISABLE_FLICKS | TABLET_DISABLE_PRESSANDHOLD | TABLET_DISABLE_FLICKFALLBACKKEYS;
+      SetProp(msg->hwnd, MICROSOFT_TABLETPENSERVICE_PROPERTY, (HANDLE) props);
     }
     if (msg->message == WM_KEYDOWN || msg->message == WM_KEYUP ||
       msg->message == WM_LBUTTONDOWN || msg->message == WM_LBUTTONUP) {
       PostMessage(thisMsgWnd, WM_USER + msg->message, msg->wParam, msg->lParam);
+    }
+    else if (msg->message == WM_POINTERDOWN ||
+      msg->message == WM_POINTERUP ||
+      msg->message == WM_POINTERUPDATE) {
+      auto pid = GET_POINTERID_WPARAM(msg->wParam);
+      POINTER_INPUT_TYPE pt;
+      GetPointerType(pid, &pt);
+      if (pt == PT_PEN) {
+        POINTER_PEN_INFO pi;
+        GetPointerPenInfo(pid, &pi);
+        PostMessage(thisMsgWnd, WM_SAI_PEN_POINTER, msg->message, pi.penMask);
+      }
+      else if (pt == PT_TOUCH) {
+        POINTER_TOUCH_INFO pi;
+        GetPointerTouchInfo(pid, &pi);
+        auto i = pi.pointerInfo.pointerId;
+        auto x = (pi.rcContact.left + pi.rcContact.right) / 2;
+        auto y = (pi.rcContact.top + pi.rcContact.bottom) / 2;
+        auto t = GetTickCount();
+        if (msg->message == WM_POINTERDOWN) {
+          thisTouchManip->ProcessDownWithTime(i, x, y, t);
+        }
+        else if (msg->message == WM_POINTERUPDATE) {
+          thisTouchManip->ProcessMoveWithTime(i, x, y, t);
+        }
+        else if (msg->message == WM_POINTERUP) {
+          thisTouchManip->ProcessUpWithTime(i, x, y, t);
+        }
+      }
+    }
+    else if (msg->message == WM_MANIP_START ||
+      msg->message == WM_MANIP_MOVE ||
+      msg->message == WM_MANIP_FINISH) {
+      PostMessage(thisMsgWnd, msg->message, msg->wParam, msg->lParam);
     }
     else if (msg->message == WM_SAI_TRY_CONNECT) {
       thisConnector->connect();
@@ -78,11 +128,17 @@ LRESULT CALLBACK GetMsgProc(int nCode, WPARAM wParam, LPARAM lParam) {
 LRESULT CALLBACK CallWndRetProc(int nCode, WPARAM wParam, LPARAM lParam) {
   if (nCode == HC_ACTION) {
     auto* cs = (CWPRETSTRUCT *)lParam;
-    // ...
   }
   return CallNextHookEx(NULL, nCode, wParam, lParam);
 }
 
+struct PEN_STATUS {
+  bool isBarrel;
+  bool isInverted;
+  bool isEraser;
+};
+
+PEN_STATUS thisPenStatus;
 EventEmitter* thisEmitter;
 SaiHooker* thisHook;
 
@@ -92,9 +148,26 @@ LRESULT CALLBACK WindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam) 
     printf("got debug WPARAM: %Ix(%d), LPARAM: %Ix(%d)\n", wParam, wParam, lParam, lParam);
   }
   else if (uMsg == WM_USER + WM_KEYDOWN || uMsg == WM_USER + WM_KEYUP ||
-      uMsg == WM_USER + WM_LBUTTONDOWN || uMsg == WM_USER + WM_LBUTTONUP ||
-      uMsg == WM_USER + WM_POINTERDOWN || uMsg == WM_USER + WM_POINTERUP) {
+      uMsg == WM_USER + WM_LBUTTONDOWN || uMsg == WM_USER + WM_LBUTTONUP) {
     thisEmitter->trigger(uMsg - WM_USER, wParam, lParam);
+  }
+  else if (uMsg == WM_MANIP_START || uMsg == WM_MANIP_MOVE || uMsg == WM_MANIP_FINISH) {
+    thisEmitter->trigger(uMsg, wParam, lParam);
+  }
+  else if (uMsg == WM_SAI_PEN_POINTER) {
+    bool isDown;
+    isDown = !!(lParam & PEN_FLAG_BARREL);
+    if (thisPenStatus.isBarrel != isDown) {
+      thisEmitter->trigger(WM_SAI_PEN_POINTER, 0, thisPenStatus.isBarrel = isDown);
+    }
+    isDown = !!(lParam & PEN_FLAG_INVERTED);
+    if (thisPenStatus.isInverted != isDown) {
+      thisEmitter->trigger(WM_SAI_PEN_POINTER, 1, thisPenStatus.isInverted = isDown);
+    }
+    isDown = !!(lParam & PEN_FLAG_ERASER);
+    if (thisPenStatus.isEraser != isDown) {
+      thisEmitter->trigger(WM_SAI_PEN_POINTER, 2, thisPenStatus.isEraser = isDown);
+    }
   }
   else if (uMsg == WM_SAI_CANVAS_ZOOM ||
       uMsg == WM_SAI_CANVAS_ROTATION ||
@@ -114,14 +187,39 @@ VOID MsgHandler(UINT uMsg, WPARAM wParam, LPARAM lParam) {
   else if (uMsg == WM_LBUTTONDOWN || uMsg == WM_LBUTTONUP) {
     thisEmitter->emit(uMsg == WM_LBUTTONDOWN ? "mouse-down" : "mouse-up", NULL, 0);
   }
-  else if (uMsg == WM_POINTERDOWN || uMsg == WM_POINTERUP) {
-    printf("got point %Ix: %Ix, LPARAM: %Ix\n", uMsg, wParam, lParam);
+  else if (uMsg == WM_MANIP_START || uMsg == WM_MANIP_FINISH) {
     Local<Value> args[] = {
-      Boolean::New(isolate, lParam & PEN_FLAG_INVERTED),
-      Boolean::New(isolate, lParam & PEN_FLAG_ERASER),
-      Boolean::New(isolate, lParam & PEN_FLAG_BARREL),
+      Number::New(isolate, (SHORT) LOWORD(lParam)),
+      Number::New(isolate, (SHORT) HIWORD(lParam)),
+      Number::New(isolate, wParam),
     };
-    thisEmitter->emit(uMsg == WM_POINTERDOWN ? "pen-down" : "pen-up", args, 3);
+    thisEmitter->emit(uMsg == WM_MANIP_START ? "touch-down" : "touch-up", args, 3);
+  }
+  else if (uMsg == WM_MANIP_MOVE) {
+    Local<Value> args[] = {
+      Number::New(isolate, (SHORT) LOWORD(lParam)),
+      Number::New(isolate, (SHORT) HIWORD(lParam)),
+      Number::New(isolate, ((SHORT) LOWORD(wParam)) / 100.0),
+      Number::New(isolate, ((SHORT) HIWORD(wParam)) / 100.0),
+    };
+    thisEmitter->emit("touch-gesture", args, 4);
+  }
+  else if (uMsg == WM_SAI_PEN_POINTER) {
+    char *key = "unknown";
+    if (wParam == 0) {
+      key = "barrel";
+    }
+    else if (wParam == 1) {
+      key = "inverted";
+    }
+    else if (wParam == 2) {
+      key = "eraser";
+    }
+    Local<Value> args[] = {
+      String::NewFromUtf8(isolate, key),
+      Boolean::New(isolate, lParam),
+    };
+    thisEmitter->emit("pen-status", args, 2);
   }
 }
 

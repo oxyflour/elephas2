@@ -257,12 +257,15 @@ void simulateMouse(const FunctionCallbackInfo<Value>& args) {
   auto x = args[0]->Int32Value();
   auto y = args[1]->Int32Value();
   auto isRelative = args[2]->BooleanValue();
+  DWORD flag = MOUSEEVENTF_MOVE;
 
-  x = x * 65535 / GetSystemMetrics(SM_CXSCREEN);
-  y = y * 65535 / GetSystemMetrics(SM_CYSCREEN);
+  if (!isRelative) {
+    x = x * 65535 / GetSystemMetrics(SM_CXSCREEN);
+    y = y * 65535 / GetSystemMetrics(SM_CYSCREEN);
+    flag |= MOUSEEVENTF_ABSOLUTE;
+  }
 
-  DWORD flag = isRelative ? 0 : MOUSEEVENTF_ABSOLUTE;
-  SimulateMouse(x, y, 0, flag | MOUSEEVENTF_MOVE);
+  SimulateMouse(x, y, 0, flag);
 }
 
 void queryWindowAt(const FunctionCallbackInfo<Value>& args) {

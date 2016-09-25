@@ -17,6 +17,19 @@ function throttled(func, time) {
   }
 }
 
+function cumulativeThrottled(func, time) {
+  const cumulativeOffsets = { x: 0, y: 0 },
+    checkThrottled = throttled(_ => {
+      func(cumulativeOffsets.x, cumulativeOffsets.y)
+      cumulativeOffsets.x = cumulativeOffsets.y = 0
+    }, time)
+  return function(dx, dy) {
+    cumulativeOffsets.x += dx
+    cumulativeOffsets.y += dy
+    checkThrottled()
+  }
+}
+
 const CTRL_WND_OPTS = {
   frame: false,
   transparent: true,
@@ -56,7 +69,7 @@ app.once('ready', _ => {
         return app.quit()
       }
     }
-    if (!config.saiPath) {
+    if (!config.saiPath || !fs.existsSync(config.saiPath)) {
       const findSaiResult = dialog.showOpenDialog(FIND_SAI_DIAG)
       if (!findSaiResult || !(config.saiPath = findSaiResult[0]) || !fs.existsSync(config.saiPath)) {
         return app.quit()
@@ -66,11 +79,12 @@ app.once('ready', _ => {
     fs.writeFileSync(configPath, JSON.stringify(config, null, 2))
   }
 
+  hook.errorCount = 0
   setInterval(_ => {
     if (hook.isOK()) {
       hook.errorCount = 0
     }
-    else if ((hook.errorCount = (hook.errorCount || 0) + 1) < 5) {
+    else if (++ hook.errorCount < 5) {
       hook.start()
     }
     else {
@@ -100,16 +114,35 @@ hook.on('mouse-up', key => {
   win && win.webContents.send('hook-mouse-up', key)
 })
 
-hook.on('pen-down', isReversed => {
-  win && win.webContents.send('hook-pen-down', key)
+hook.on('pen-status', (key, isDown) => {
+  console.log(key, isDown)
 })
 
-hook.on('pen-up', isReversed => {
-  win && win.webContents.send('hook-pen-up', key)
+hook.on('touch-down', (x, y, n) => {
+  if (n != 2) {
+    clearTimeout(hook.startManipulation)
+    hook.manipulationStatus = null
+  }
+  else hook.startManipulation = setTimeout(_ => {
+    const scale = hook.getSaiCanvasZoom(),
+      angle = hook.getSaiCanvasRotation()
+    hook.manipulationStatus = { scale, angle }
+  }, 50)
 })
 
-hook.on('touch-start', (x, y) => {
-  console.log(x, y)
+hook.on('touch-up', (x, y, n) => {
+  if (n != 2) {
+    clearTimeout(hook.startManipulation)
+    hook.manipulationStatus = null
+  }
+})
+
+hook.on('touch-gesture', (x, y, s, r) => {
+  if (hook.manipulationStatus) {
+    const { scale, angle } = hook.manipulationStatus
+    hook.setSaiCanvasZoom(s * scale)
+    hook.setSaiCanvasRotation(r / Math.PI * 180 + angle)
+  }
 })
 
 ipcMain.on('get-cursor-position', evt => {
@@ -139,7 +172,7 @@ ipcMain.on('sai-canvas-zoom', (evt, scale) => {
     (evt.returnValue = hook.getSaiCanvasZoom())
 })
 
-hook.setSaiCanvasRotation = throttled(hook.setSaiCanvasRotation.bind(hook), 30)
+hook.setSaiCanvasRotation = throttled(hook.setSaiCanvasRotation.bind(hook), 32)
 ipcMain.on('sai-canvas-rotation', (evt, angle) => {
   angle !== undefined ?
     hook.setSaiCanvasRotation(angle) :

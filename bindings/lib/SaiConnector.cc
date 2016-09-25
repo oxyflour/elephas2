@@ -43,14 +43,14 @@ static BOOL CALLBACK EnumThreadWndProc(HWND hWnd, LPARAM lParam) {
 }
 
 static const int SLIDER_LENGTH = 128;
-static const int SLIDER_OFFSET_X = 14;
+static const int SLIDER_OFFSET_X = 15;
 static const int SLIDER_OFFSET_Y = 11;
 static auto getColorSliderPosition(HWND hWnd) {
   auto hdc = GetDC(hWnd);
-  auto p0 = GetPixel(hdc, SLIDER_OFFSET_X, SLIDER_OFFSET_Y);
+  auto p0 = GetPixel(hdc, SLIDER_OFFSET_X - 1, SLIDER_OFFSET_Y);
   int i = 0;
   for (; i < SLIDER_LENGTH; i ++) {
-    auto p1 = GetPixel(hdc, SLIDER_OFFSET_X + 1 + i, SLIDER_OFFSET_Y);
+    auto p1 = GetPixel(hdc, SLIDER_OFFSET_X + i, SLIDER_OFFSET_Y);
     if (p0 != p1) {
       break;
     }
