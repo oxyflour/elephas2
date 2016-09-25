@@ -74,8 +74,9 @@ double SaiConnector::getCanvasZoom() {
 }
 
 void SaiConnector::setCanvasZoom(double scale) {
-  auto fx = 0.5 * log(scale / 100) / log(2) / 5 + 0.5;
-  simulateClickInWindow(wnds[NAV_ZOOM], fx, 0.5, 4);
+  auto x = log(scale / 100) / log(2);
+  auto y = scale > 100 ? 3.8*x*x + 26*x : 2.6*x*x + 45*x;
+  simulateClickInWindow(wnds[NAV_ZOOM], (y + 165) / 330, 0.5, 4);
 }
 
 double SaiConnector::getCanvasRotation() {
