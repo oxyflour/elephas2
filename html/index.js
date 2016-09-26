@@ -57,7 +57,7 @@ function attachAccessory(elem, keys, start, finish, ignore) {
       const { x, y } = ipcRenderer.sendSync('get-cursor-position')
       window.moveTo(elem.base.x + x - elem.start.x, elem.base.y + y - elem.start.y)
       document.body.classList.remove('is-transparent')
-      
+
       finish && finish(null, elem)
 
       ipcRenderer.send('ignore-mouse', false)
@@ -69,6 +69,15 @@ function attachAccessory(elem, keys, start, finish, ignore) {
 }
 
 void(function() {
+  function updateFloatButtons(offset) {
+    const floatButtons = document.querySelectorAll('.main .float-button'),
+      radius = document.getElementById('colorPicker').getBoundingClientRect().width / 2 + offset
+    ;[].forEach.call(floatButtons, (elem, index) => {
+      const pos = ra2xy(radius, - index / floatButtons.length * 2 * Math.PI)
+      elem.style.transform = `translate(-50%, -50%) translate(${pos.x}px, ${pos.y}px)`
+    })
+  }
+
   function showWindow() {
     document.body.classList.add('show')
     if (!window.isShown) {
@@ -76,6 +85,7 @@ void(function() {
       window.resizeTo(320, 320)
       window.moveTo(x - 320 / 2, y - 320 / 2)
       window.dispatchEvent(new Event('before-window-shown'))
+      updateFloatButtons(30)
       ipcRenderer.send('show-window', true)
       window.isShown = true
     }
@@ -83,6 +93,7 @@ void(function() {
 
   function hideWindow() {
     document.body.classList.remove('show')
+    updateFloatButtons(10)
     document.body.addEventListener('webkitTransitionEnd', function once() {
       document.body.removeEventListener('webkitTransitionEnd', once)
       if (document.body.classList.contains('show')) {
@@ -269,8 +280,8 @@ function nearestAngle(current, target) {
 }
 
 void(function() {
-  const pickerWidth = 180,
-    ringWidth = 20,
+  const pickerWidth = 150,
+    ringWidth = 15,
     hw = pickerWidth / 2,
     pt = (r, a) => ra2xy(r, a, hw, hw)
 
@@ -450,12 +461,3 @@ void(function() {
     cpColorCompare.style.background = `hsl(${c.h}, ${c.s * 100}%, ${c.l * 100}%)`
   })
 })()
-
-window.addEventListener('before-window-shown', evt => {
-  const floatButtons = document.querySelectorAll('.main .float-button'),
-    radius = document.getElementById('colorPicker').getBoundingClientRect().width / 2
-  ;[].forEach.call(floatButtons, (elem, index) => {
-    const pos = ra2xy(radius, index / floatButtons.length * 2 * Math.PI)
-    elem.style.transform = `translate(-50%, -50%) translate(${pos.x}px, ${pos.y}px)`
-  })
-})

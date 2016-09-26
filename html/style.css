@@ -6,7 +6,6 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(0, 0, 0, 0.1);
 }
 * {
   -webkit-user-select: none;
@@ -31,6 +30,7 @@ body {
   height: 40px;
   line-height: 40px;
   text-align: center;
+  transition: transform 0.2s;
 }
 body.show .main {
   opacity: 1;

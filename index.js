@@ -170,11 +170,11 @@ hook.moveCanvas = cumulativeThrottled(hook.moveCanvas.bind(hook), 40)
 hook.on('touch-gesture', (x, y, s, r) => {
   if (hook.manipulationStatus) {
     const { scale, angle, dx, dy } = hook.manipulationStatus
-    hook.setSaiCanvasZoom(s * scale)
-    hook.setSaiCanvasRotation(r / Math.PI * 180 + angle)
     hook.moveCanvas(x - dx, y - dy)
     hook.manipulationStatus.dx = x
     hook.manipulationStatus.dy = y
+    hook.setSaiCanvasZoom(s * scale)
+    hook.setSaiCanvasRotation(r / Math.PI * 180 + angle)
   }
 })
 
