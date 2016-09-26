@@ -18,6 +18,7 @@ public:
   void connect();
 
   HWND getCanvasParent();
+  void moveCanvas(int dx, int dy);
 
   double getCanvasZoom();
   void setCanvasZoom(double scale);

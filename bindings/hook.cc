@@ -33,11 +33,12 @@ const static UINT WM_USER_DEBUG           = WM_USER + WM_COMMAND + 1;
 const static UINT WM_MANIP_START          = WM_USER + WM_COMMAND + 2;
 const static UINT WM_MANIP_MOVE           = WM_USER + WM_COMMAND + 3;
 const static UINT WM_MANIP_FINISH         = WM_USER + WM_COMMAND + 4;
-const static UINT WM_SAI_TRY_CONNECT      = WM_USER + WM_COMMAND + 5;
-const static UINT WM_SAI_CANVAS_ZOOM      = WM_USER + WM_COMMAND + 6;
-const static UINT WM_SAI_CANVAS_ROTATION  = WM_USER + WM_COMMAND + 7;
-const static UINT WM_SAI_COLOR_HSV        = WM_USER + WM_COMMAND + 8;
-const static UINT WM_SAI_PEN_POINTER      = WM_USER + WM_COMMAND + 9;
+const static UINT WM_SAI_CANVAS_MOVE      = WM_USER + WM_COMMAND + 5;
+const static UINT WM_SAI_TRY_CONNECT      = WM_USER + WM_COMMAND + 6;
+const static UINT WM_SAI_CANVAS_ZOOM      = WM_USER + WM_COMMAND + 7;
+const static UINT WM_SAI_CANVAS_ROTATION  = WM_USER + WM_COMMAND + 8;
+const static UINT WM_SAI_COLOR_HSV        = WM_USER + WM_COMMAND + 9;
+const static UINT WM_SAI_PEN_POINTER      = WM_USER + WM_COMMAND + 10;
 
 HWND thisMsgWnd;
 TouchManipulation* thisTouchManip;
@@ -96,6 +97,9 @@ LRESULT CALLBACK GetMsgProc(int nCode, WPARAM wParam, LPARAM lParam) {
     }
     else if (msg->message == WM_SAI_TRY_CONNECT) {
       thisConnector->connect();
+    }
+    else if (msg->message == WM_SAI_CANVAS_MOVE) {
+      thisConnector->moveCanvas(LOWORD(msg->lParam), HIWORD(msg->lParam));
     }
     else if (msg->message == WM_SAI_CANVAS_ZOOM) {
       msg->wParam ?
@@ -239,6 +243,12 @@ void activateSaiWindow(const FunctionCallbackInfo<Value>& args) {
   SetForegroundWindow(thisHook->getSaiMain());
 }
 
+void moveCanvas(const FunctionCallbackInfo<Value>& args) {
+  auto dx = args[0]->NumberValue();
+  auto dy = args[1]->NumberValue();
+  thisHook->postMessage(WM_SAI_CANVAS_MOVE, 0, MAKELPARAM(dx, dy));
+}
+
 void getSaiCanvasZoom(const FunctionCallbackInfo<Value>& args) {
   auto msg = thisHook->sendMessage(WM_SAI_CANVAS_ZOOM, 0, 0);
   args.GetReturnValue().Set(msg.lParam * 1.0 / 0x10000);
@@ -323,6 +333,7 @@ void init(Local<Object> exports) {
   NODE_SET_METHOD(exports, "off", off);
 
   NODE_SET_METHOD(exports, "activateSaiWindow", activateSaiWindow);
+  NODE_SET_METHOD(exports, "moveCanvas", moveCanvas);
 
   NODE_SET_METHOD(exports, "getSaiCanvasZoom", getSaiCanvasZoom);
   NODE_SET_METHOD(exports, "setSaiCanvasZoom", setSaiCanvasZoom);

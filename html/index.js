@@ -43,17 +43,21 @@ function attachAccessory(elem, keys, start, finish, ignore) {
 
     keys = Array.isArray(keys) ? keys : keys.split(' ').filter(key => key)
     keys.forEach(key => ipcRenderer.send('simulate-key', key, true))
+
     elem.start = ipcRenderer.sendSync('get-cursor-position')
     elem.base = { x: window.screenX, y: window.screenY }
     document.body.classList.add('is-transparent')
+
     start && start(evt, elem)
 
     ipcRenderer.send('simulate-key', 'LEFT', true)
     ipcRenderer.once('hook-mouse-up', _ => {
       keys.reverse().forEach(key => ipcRenderer.send('simulate-key', key, false))
+
       const { x, y } = ipcRenderer.sendSync('get-cursor-position')
       window.moveTo(elem.base.x + x - elem.start.x, elem.base.y + y - elem.start.y)
       document.body.classList.remove('is-transparent')
+      
       finish && finish(null, elem)
 
       ipcRenderer.send('ignore-mouse', false)
@@ -149,7 +153,7 @@ void(function() {
   ;[].forEach.call(document.querySelectorAll('[shortcut-keys]'), elem => {
     const keys = elem.getAttribute('shortcut-keys').split(' ').filter(k => k)
     elem.addEventListener('click', e => {
-      hideWindow()
+      elem.attributes['close-after-click'] && hideWindow()
       ipcRenderer.send('activate-sai-window')
       keys.forEach(key => ipcRenderer.send('simulate-key', key, true))
       keys.reverse().forEach(key => ipcRenderer.send('simulate-key', key, false))
@@ -451,8 +455,7 @@ window.addEventListener('before-window-shown', evt => {
   const floatButtons = document.querySelectorAll('.main .float-button'),
     radius = document.getElementById('colorPicker').getBoundingClientRect().width / 2
   ;[].forEach.call(floatButtons, (elem, index) => {
-    const angle = -index / floatButtons.length * 360
-    elem.style.transform =
-      `translate(-50%, -50%) rotate(${angle}deg) translate(${radius}px, 0)`
+    const pos = ra2xy(radius, index / floatButtons.length * 2 * Math.PI)
+    elem.style.transform = `translate(-50%, -50%) translate(${pos.x}px, ${pos.y}px)`
   })
 })

@@ -20,8 +20,10 @@ function throttled(func, time) {
 function cumulativeThrottled(func, time) {
   const cumulativeOffsets = { x: 0, y: 0 },
     checkThrottled = throttled(_ => {
-      func(cumulativeOffsets.x, cumulativeOffsets.y)
-      cumulativeOffsets.x = cumulativeOffsets.y = 0
+      if (cumulativeOffsets.x || cumulativeOffsets.y) {
+        func(cumulativeOffsets.x, cumulativeOffsets.y)
+        cumulativeOffsets.x = cumulativeOffsets.y = 0
+      }
     }, time)
   return function(dx, dy) {
     cumulativeOffsets.x += dx
@@ -125,22 +127,23 @@ hook.on('pen-button-up', key => {
 const tapTicks = { }
 
 hook.on('touch-down', (x, y, n) => {
-  // detect taps
+  // taps
   tapTicks[n] = Date.now()
-
+  // zoom/rotate
   if (n != 2) {
     clearTimeout(hook.startManipulation)
     hook.manipulationStatus = null
   }
   else hook.startManipulation = setTimeout(_ => {
     const scale = hook.getSaiCanvasZoom(),
-      angle = hook.getSaiCanvasRotation()
-    hook.manipulationStatus = { scale, angle }
+      angle = hook.getSaiCanvasRotation(),
+      dx = 0, dy = 0
+    hook.manipulationStatus = { scale, angle, dx, dy }
   }, 50)
 })
 
 hook.on('touch-up', (x, y, n) => {
-  // detect taps
+  // taps
   if (n == 0) {
     const now = Date.now()
     for (var i = 0; tapTicks[i + 1] > now - 200; i ++);
@@ -156,18 +159,22 @@ hook.on('touch-up', (x, y, n) => {
       console.log('tap', i)
     }
   }
-
+  // zoom/rotate
   if (n != 2) {
     clearTimeout(hook.startManipulation)
     hook.manipulationStatus = null
   }
 })
 
+hook.moveCanvas = cumulativeThrottled(hook.moveCanvas.bind(hook), 40)
 hook.on('touch-gesture', (x, y, s, r) => {
   if (hook.manipulationStatus) {
-    const { scale, angle } = hook.manipulationStatus
+    const { scale, angle, dx, dy } = hook.manipulationStatus
     hook.setSaiCanvasZoom(s * scale)
     hook.setSaiCanvasRotation(r / Math.PI * 180 + angle)
+    hook.moveCanvas(x - dx, y - dy)
+    hook.manipulationStatus.dx = x
+    hook.manipulationStatus.dy = y
   }
 })
 
@@ -191,14 +198,14 @@ ipcMain.on('simulate-key', (evt, key, isDown) => {
   helper.simulateKey(key, isDown)
 })
 
-hook.setSaiCanvasZoom = throttled(hook.setSaiCanvasZoom.bind(hook), 50)
+hook.setSaiCanvasZoom = throttled(hook.setSaiCanvasZoom.bind(hook), 40)
 ipcMain.on('sai-canvas-zoom', (evt, scale) => {
   scale !== undefined ?
     hook.setSaiCanvasZoom(scale) :
     (evt.returnValue = hook.getSaiCanvasZoom())
 })
 
-hook.setSaiCanvasRotation = throttled(hook.setSaiCanvasRotation.bind(hook), 52)
+hook.setSaiCanvasRotation = throttled(hook.setSaiCanvasRotation.bind(hook), 40)
 ipcMain.on('sai-canvas-rotation', (evt, angle) => {
   angle !== undefined ?
     hook.setSaiCanvasRotation(angle) :

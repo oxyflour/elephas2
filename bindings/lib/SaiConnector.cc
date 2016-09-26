@@ -32,6 +32,31 @@ static void simulateClickInWindow(HWND hWnd, double fx, double fy,
   PostMessage(hWnd, WM_LBUTTONUP, 0, MAKELPARAM(x, y));
 }
 
+static void simulateDragInWindow(HWND hWnd, int dx, int dy, WPARAM wParam) {
+  RECT rt;
+  GetWindowRect(hWnd, &rt);
+  auto x = (rt.right - rt.left) / 2;
+  auto y = (rt.bottom - rt.top) / 2;
+
+  if (wParam & MK_CONTROL) {
+    PostMessage(hWnd, WM_KEYDOWN, VK_CONTROL, 0);
+  }
+  if (wParam & MK_SHIFT) {
+    PostMessage(hWnd, WM_KEYDOWN, VK_SHIFT, 0);
+  }
+
+  PostMessage(hWnd, WM_LBUTTONDOWN, wParam | MK_LBUTTON, MAKELPARAM(x, y));
+  PostMessage(hWnd, WM_MOUSEMOVE, wParam | MK_LBUTTON, MAKELPARAM(x + dx, y + dy));
+  PostMessage(hWnd, WM_LBUTTONUP, 0, MAKELPARAM(x + dx, y + dy));
+
+  if (wParam & MK_SHIFT) {
+    PostMessage(hWnd, WM_KEYUP, VK_SHIFT, 0);
+  }
+  if (wParam & MK_CONTROL) {
+    PostMessage(hWnd, WM_KEYUP, VK_CONTROL, 0);
+  }
+}
+
 static BOOL CALLBACK EnumChildWndProc(HWND hWnd, LPARAM lParam) {
   auto& wnds = *(map<int, HWND> *) lParam;
   auto ctrlId = GetDlgCtrlID(hWnd);
@@ -52,6 +77,13 @@ void SaiConnector::connect() {
 
 HWND SaiConnector::getCanvasParent() {
   return GetWindow(wnds[CANVAS_CONTAINER], GW_CHILD);
+}
+
+void SaiConnector::moveCanvas(int dx, int dy) {
+  HWND hWnd = GetWindow(getCanvasParent(), GW_CHILD);
+  PostMessage(hWnd, WM_KEYDOWN, VK_SPACE, 0);
+  simulateDragInWindow(hWnd, dx, dy, 0);
+  PostMessage(hWnd, WM_KEYUP, VK_SPACE, 0);
 }
 
 double SaiConnector::getCanvasZoom() {
