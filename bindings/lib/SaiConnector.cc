@@ -63,6 +63,9 @@ static BOOL CALLBACK EnumChildWndProc(HWND hWnd, LPARAM lParam) {
   if (ctrlId > 0) {
     wnds[ctrlId] = hWnd;
   }
+  if (ctrlId == CANVAS_CONTAINER) {
+    wnds[ctrlId] = GetWindow(hWnd, GW_CHILD);
+  }
   return TRUE;
 }
 
@@ -75,12 +78,8 @@ void SaiConnector::connect() {
   EnumThreadWindows(GetCurrentThreadId(), EnumThreadWndProc, (LPARAM) &wnds);
 }
 
-HWND SaiConnector::getCanvasParent() {
-  return GetWindow(wnds[CANVAS_CONTAINER], GW_CHILD);
-}
-
 void SaiConnector::moveCanvas(int dx, int dy) {
-  HWND hWnd = GetWindow(getCanvasParent(), GW_CHILD);
+  HWND hWnd = GetWindow(wnds[CANVAS_CONTAINER], GW_CHILD);
   PostMessage(hWnd, WM_KEYDOWN, VK_SPACE, 0);
   simulateDragInWindow(hWnd, dx, dy, 0);
   PostMessage(hWnd, WM_KEYUP, VK_SPACE, 0);

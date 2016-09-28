@@ -126,6 +126,7 @@ LRESULT CALLBACK GetMsgProc(int nCode, WPARAM wParam, LPARAM lParam) {
 LRESULT CALLBACK CallWndRetProc(int nCode, WPARAM wParam, LPARAM lParam) {
   if (nCode == HC_ACTION) {
     auto* cs = (CWPRETSTRUCT *)lParam;
+    // not used
   }
   return CallNextHookEx(NULL, nCode, wParam, lParam);
 }
@@ -198,7 +199,7 @@ VOID MsgHandler(UINT uMsg, WPARAM wParam, LPARAM lParam) {
       Number::New(isolate, (SHORT) LOWORD(lParam)),
       Number::New(isolate, (SHORT) HIWORD(lParam)),
       Number::New(isolate, ((SHORT) LOWORD(wParam)) / 100.0),
-      Number::New(isolate, ((SHORT) HIWORD(wParam)) / 100.0),
+      Number::New(isolate, ((SHORT) HIWORD(wParam)) / 100.0 / 3.1415926 * 180),
     };
     thisEmitter->emit("touch-gesture", args, 4);
   }

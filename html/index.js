@@ -1,8 +1,15 @@
-const { ipcRenderer } = require('electron')
+const { ipcRenderer } = require('electron'),
+  passedConfig = JSON.parse(decodeURIComponent(location.search.substr(1))),
+  config = Object.assign({
+    width: 320,
+    height: 320,
+    colorPickerSize: 150,
+  }, passedConfig)
 
 function attachDraggable(elem, start, move, finish, ignore) {
-  if (Array.isArray(elem)) {
-    return elem.forEach(elem => attachDraggable(elem, start, move, finish, ignore))
+  if (elem.length >= 0) {
+    return [].forEach.call(elem,
+      elem => attachDraggable(elem, start, move, finish, ignore))
   }
 
   function _start(evt) {
@@ -70,8 +77,12 @@ function attachAccessory(elem, keys, start, finish, ignore) {
 
 void(function() {
   function updateFloatButtons(offset) {
+    const colorPickerMain = document.querySelectorAll('.main')
+    ;[].forEach.call(colorPickerMain, elem => {
+      elem.style.width = elem.style.height = `${config.colorPickerSize}px`
+    })
     const floatButtons = document.querySelectorAll('.main .float-button'),
-      radius = document.getElementById('colorPicker').getBoundingClientRect().width / 2 + offset
+      radius = config.colorPickerSize / 2 + offset
     ;[].forEach.call(floatButtons, (elem, index) => {
       const pos = ra2xy(radius, - index / floatButtons.length * 2 * Math.PI)
       elem.style.transform = `translate(-50%, -50%) translate(${pos.x}px, ${pos.y}px)`
@@ -82,8 +93,8 @@ void(function() {
     document.body.classList.add('show')
     if (!window.isShown) {
       const { x, y } = ipcRenderer.sendSync('get-cursor-position')
-      window.resizeTo(320, 320)
-      window.moveTo(x - 320 / 2, y - 320 / 2)
+      window.resizeTo(config.width, config.height)
+      window.moveTo(x - config.width / 2, y - config.height / 2)
       window.dispatchEvent(new Event('before-window-shown'))
       updateFloatButtons(30)
       ipcRenderer.send('show-window', true)
@@ -164,7 +175,7 @@ void(function() {
   ;[].forEach.call(document.querySelectorAll('[shortcut-keys]'), elem => {
     const keys = elem.getAttribute('shortcut-keys').split(' ').filter(k => k)
     elem.addEventListener('click', e => {
-      elem.attributes['close-after-click'] && hideWindow()
+      elem.attributes['keep-open'] || hideWindow()
       ipcRenderer.send('activate-sai-window')
       keys.forEach(key => ipcRenderer.send('simulate-key', key, true))
       keys.reverse().forEach(key => ipcRenderer.send('simulate-key', key, false))

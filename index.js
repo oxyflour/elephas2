@@ -32,6 +32,16 @@ function cumulativeThrottled(func, time) {
   }
 }
 
+const DEFAULT_CONFIG = {
+  //
+  autoStart: false,
+  saiPath: '',
+  //
+  width: 320,
+  height: 320,
+  colorPickerSize: 150,
+}
+
 const CTRL_WND_OPTS = {
   frame: false,
   transparent: true,
@@ -53,18 +63,15 @@ const FIND_SAI_DIAG = {
   filters: [{ name: 'sai2.exe', extensions: ['exe'] }],
 }
 
-let win
+let win, config
 
 app.once('ready', _ => {
-  win = new BrowserWindow(CTRL_WND_OPTS)
-  win.loadURL(`file://${__dirname}/html/index.html`)
-  win.webContents.openDevTools({ mode: 'detach' })
+  const packageJSON = require(path.join(__dirname, 'package.json')),
+    configPath = path.join(app.getPath('home'), `${packageJSON.name}.json`)
+  config = fs.existsSync(configPath) ? require(configPath) : DEFAULT_CONFIG
 
   hook.start()
   if (!hook.isOK()) {
-    const packageJSON = require(path.join(__dirname, 'package.json')),
-      configPath = path.join(app.getPath('home'), `${packageJSON.name}.json`),
-      config = fs.existsSync(configPath) ? require(configPath) : { }
     if (!config.autoStart) {
       const askStartResult = dialog.showMessageBox(ASK_START_SAI)
       if (askStartResult !== 0) {
@@ -84,6 +91,12 @@ app.once('ready', _ => {
   hook.errorCount = 0
   setInterval(_ => {
     if (hook.isOK()) {
+      if (!win) {
+        const query = encodeURIComponent(JSON.stringify(config))
+        win = new BrowserWindow(CTRL_WND_OPTS)
+        win.loadURL(`file://${__dirname}/html/index.html?${query}`)
+        win.webContents.openDevTools({ mode: 'detach' })
+      }
       hook.errorCount = 0
     }
     else if (++ hook.errorCount < 5) {
@@ -130,8 +143,8 @@ hook.on('touch-down', (x, y, n) => {
   // taps
   tapTicks[n] = Date.now()
   // zoom/rotate
+  clearTimeout(hook.startManipulation)
   if (n != 2) {
-    clearTimeout(hook.startManipulation)
     hook.manipulationStatus = null
   }
   else hook.startManipulation = setTimeout(_ => {
@@ -166,15 +179,18 @@ hook.on('touch-up', (x, y, n) => {
   }
 })
 
-hook.moveCanvas = cumulativeThrottled(hook.moveCanvas.bind(hook), 40)
+hook.moveCanvas = cumulativeThrottled(hook.moveCanvas.bind(hook), 30)
 hook.on('touch-gesture', (x, y, s, r) => {
   if (hook.manipulationStatus) {
     const { scale, angle, dx, dy } = hook.manipulationStatus
+    // 
+    //hook.setSaiCanvasZoom(s * scale)
+    hook.setSaiCanvasRotation(Math.floor((r + angle) / 2) * 2)
+    // FIXME:
+    helper.simulateKey('CONTROL', false)
     hook.moveCanvas(x - dx, y - dy)
     hook.manipulationStatus.dx = x
     hook.manipulationStatus.dy = y
-    hook.setSaiCanvasZoom(s * scale)
-    hook.setSaiCanvasRotation(r / Math.PI * 180 + angle)
   }
 })
 

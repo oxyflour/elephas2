@@ -4,11 +4,13 @@ const char* SAI_ROOT_WINDOW = "sflRootWindow";
 
 SaiHooker::SaiHooker(HOOKPROC GetMsgProc, HOOKPROC CallWndRetProc):
   GetMsgProc(GetMsgProc), CallWndRetProc(CallWndRetProc) {
-  syncEvent = CreateEvent(NULL, FALSE, FALSE, NULL);
 }
 
 SaiHooker::~SaiHooker() {
-  CloseHandle(syncEvent);
+  for (auto const &i : syncEvents) {
+    CloseHandle(i.second->evt);
+    delete i.second;
+  }
   unhook();
 }
 
@@ -69,14 +71,22 @@ void SaiHooker::postMessage(UINT uMsg, WPARAM wParam, LPARAM lParam) {
 }
 
 MSG SaiHooker::sendMessage(UINT uMsg, WPARAM wParam, LPARAM lParam) {
+  auto sync = syncEvents[uMsg];
+  if (!sync) {
+    syncEvents[uMsg] = sync = (SYNC_EVENT*) malloc(sizeof(SYNC_EVENT));
+    sync->evt = CreateEvent(NULL, FALSE, FALSE, NULL);
+  }
   PostMessage(saiMain, uMsg, wParam, lParam);
-  WaitForSingleObject(syncEvent, 2000);
-  return syncMsg;
+  WaitForSingleObject(sync->evt, 2000);
+  return sync->msg;
 }
 
 void SaiHooker::respMessage(UINT uMsg, WPARAM wParam, LPARAM lParam) {
-  syncMsg.message = uMsg;
-  syncMsg.wParam = wParam;
-  syncMsg.lParam = lParam;
-  SetEvent(syncEvent);
+  auto sync = syncEvents[uMsg];
+  if (sync) {
+    sync->msg.message = uMsg;
+    sync->msg.wParam = wParam;
+    sync->msg.lParam = lParam;
+    SetEvent(sync->evt);
+  }
 }

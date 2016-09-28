@@ -11,10 +11,7 @@ body {
   -webkit-user-select: none;
 }
 .main {
-  width: 180px;
-  height: 180px;
   text-align: center;
-  line-height: 100px;
   position: relative;
   transition: opacity 0.2s;
   opacity: 0;

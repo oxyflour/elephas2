@@ -1,6 +1,15 @@
 #include <stdio.h>
 #include <windows.h>
 
+#include <map>
+
+using namespace std;
+
+struct SYNC_EVENT {
+  HANDLE evt;
+  MSG msg;
+};
+
 class SaiHooker {
 private:
   HWND saiMain = NULL;
@@ -11,8 +20,7 @@ private:
   HOOKPROC GetMsgProc;
   HOOKPROC CallWndRetProc;
 
-  HANDLE syncEvent = NULL;
-  MSG syncMsg;
+  map<int, SYNC_EVENT*> syncEvents;
 
 public:
   SaiHooker(HOOKPROC GetMsgProc, HOOKPROC CallWndRetProc);
