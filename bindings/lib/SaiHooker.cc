@@ -9,7 +9,7 @@ SaiHooker::SaiHooker(HOOKPROC GetMsgProc, HOOKPROC CallWndRetProc):
 SaiHooker::~SaiHooker() {
   for (auto const &i : syncEvents) {
     CloseHandle(i.second->evt);
-    delete i.second;
+    free(i.second);
   }
   unhook();
 }
@@ -74,8 +74,9 @@ MSG SaiHooker::sendMessage(UINT uMsg, WPARAM wParam, LPARAM lParam) {
   auto sync = syncEvents[uMsg];
   if (!sync) {
     syncEvents[uMsg] = sync = (SYNC_EVENT*) malloc(sizeof(SYNC_EVENT));
-    sync->evt = CreateEvent(NULL, FALSE, FALSE, NULL);
+    sync->evt = CreateEvent(NULL, TRUE, FALSE, NULL);
   }
+  ResetEvent(sync->evt);
   PostMessage(saiMain, uMsg, wParam, lParam);
   WaitForSingleObject(sync->evt, 2000);
   return sync->msg;
