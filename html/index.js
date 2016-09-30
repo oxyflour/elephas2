@@ -1,10 +1,6 @@
 const { ipcRenderer } = require('electron'),
-  passedConfig = JSON.parse(decodeURIComponent(location.search.substr(1))),
-  config = Object.assign({
-    width: 320,
-    height: 320,
-    colorPickerSize: 150,
-  }, passedConfig)
+  config = JSON.parse(decodeURIComponent(location.search.substr(1))),
+  contentSize = Math.min(config.width, config.height) - config.floatButtonSize * 2
 
 function attachDraggable(elem, start, move, finish, ignore) {
   if (elem.length >= 0) {
@@ -38,6 +34,11 @@ function attachDraggable(elem, start, move, finish, ignore) {
 }
 
 function attachAccessory(elem, keys, start, finish, ignore) {
+  if (elem.length >= 0) {
+    return [].forEach.call(elem,
+      elem => attachAccessory(elem, keys, start, finish, ignore))
+  }
+
   function _start(evt) {
     if (ignore && ignore(evt, elem)) {
       return
@@ -75,52 +76,88 @@ function attachAccessory(elem, keys, start, finish, ignore) {
   return _ => elem.removeEventListener('mousedown', _start)
 }
 
+function simulateShorcut(keys) {
+  ipcRenderer.send('activate-sai-window')
+  keys.split(' ').filter(keys => keys).forEach(keys => {
+    keys.split('+').filter(key => key)
+      .filter(key => ipcRenderer.send('simulate-key', key, true) || true)
+      .reverse()
+      .filter(key => ipcRenderer.send('simulate-key', key, false) || true)
+  })
+}
+
+function elemFromString(string) {
+  const tpl = document.createElement('template')
+  tpl.innerHTML = string
+  return tpl.content.firstChild
+}
+
 void(function() {
+  ;[].forEach.call(document.querySelectorAll('body > .content.auto-size'), elem => {
+    elem.style.width = elem.style.height = `${contentSize}px`
+  })
+
+  const floatButtons = [ ]
+  config.floatButtons && config.floatButtons.forEach(data => {
+    const elem = elemFromString(
+      data.usage === 'color-history' ?
+      `<span title="${data.title || ''}"
+          class="float-button color-picker-color color-picker-history-selector">
+        <i class="color-picker-color-bg"></i>
+      </span>` :
+      `<span class="float-button" title="${data.title || ''}"
+        shortcut-keys="${data.key || ''}" keep-open="${data.keepOpen || ''}">
+        <i class="${data.cls || ''}"></i>
+      </span>`)
+    elem.style.width = elem.style.height =
+      elem.style.lineHeight = `${config.floatButtonSize}px`
+    floatButtons.push(elem)
+    main.appendChild(elem)
+  })
+
   function updateFloatButtons(offset) {
-    const colorPickerMain = document.querySelectorAll('.main')
-    ;[].forEach.call(colorPickerMain, elem => {
-      elem.style.width = elem.style.height = `${config.colorPickerSize}px`
-    })
-    const floatButtons = document.querySelectorAll('.main .float-button'),
-      radius = config.colorPickerSize / 2 + offset
-    ;[].forEach.call(floatButtons, (elem, index) => {
+    const radius = (contentSize + config.floatButtonSize) / 2 + offset
+    floatButtons.forEach((elem, index) => {
       const pos = ra2xy(radius, - index / floatButtons.length * 2 * Math.PI)
       elem.style.transform = `translate(-50%, -50%) translate(${pos.x}px, ${pos.y}px)`
     })
   }
 
+  window.addEventListener('before-window-shown', _ => updateFloatButtons(0))
+  window.addEventListener('before-window-hidden', _ => updateFloatButtons(-15))
+})()
+
+void(function() {
   function showWindow() {
     document.body.classList.add('show')
     if (!window.isShown) {
+      window.dispatchEvent(new Event('before-window-shown'))
       const { x, y } = ipcRenderer.sendSync('get-cursor-position')
       window.resizeTo(config.width, config.height)
       window.moveTo(x - config.width / 2, y - config.height / 2)
-      window.dispatchEvent(new Event('before-window-shown'))
-      updateFloatButtons(30)
       ipcRenderer.send('show-window', true)
       window.isShown = true
+      window.dispatchEvent(new Event('after-window-shown'))
     }
   }
 
   function hideWindow() {
     document.body.classList.remove('show')
-    updateFloatButtons(10)
+    window.dispatchEvent(new Event('before-window-hidden'))
     document.body.addEventListener('webkitTransitionEnd', function once() {
       document.body.removeEventListener('webkitTransitionEnd', once)
-      if (document.body.classList.contains('show')) {
-        return
+      if (!document.body.classList.contains('show')) {
+        ipcRenderer.send('show-window', false)
+        ipcRenderer.send('activate-sai-window')
+        window.isShown = false
       }
-      window.dispatchEvent(new Event('before-window-hidden'))
-      ipcRenderer.send('show-window', false)
-      ipcRenderer.send('activate-sai-window')
       window.dispatchEvent(new Event('after-window-hidden'))
-      window.isShown = false
     })
   }
 
-  let triggerKeyCode = 'Q'.charCodeAt(0),
+  let triggerKeyCode = config.triggerKeyChar.charCodeAt(0),
     triggerKeyDown = false,
-    triggerPenButton = 'inverted',
+    triggerPenButton = config.triggerPenButton,
     triggerButtonDown = false,
     mouseLeftDown = false
 
@@ -173,12 +210,9 @@ void(function() {
   })
 
   ;[].forEach.call(document.querySelectorAll('[shortcut-keys]'), elem => {
-    const keys = elem.getAttribute('shortcut-keys').split(' ').filter(k => k)
     elem.addEventListener('click', e => {
-      elem.attributes['keep-open'] || hideWindow()
-      ipcRenderer.send('activate-sai-window')
-      keys.forEach(key => ipcRenderer.send('simulate-key', key, true))
-      keys.reverse().forEach(key => ipcRenderer.send('simulate-key', key, false))
+      elem.getAttribute('keep-open') || hideWindow()
+      simulateShorcut(elem.getAttribute('shortcut-keys'))
     })
   })
 })()
@@ -198,7 +232,7 @@ void(function() {
     document.body.classList.remove('is-manipulating', 'is-zooming', 'is-rotating')
   })
 
-  attachDraggable(document.getElementById('manipCanvas'), (evt, elem) => {
+  attachDraggable(document.querySelectorAll('.canvas-zoom-rotate'), (evt, elem) => {
     const { x, y } = ipcRenderer.sendSync('get-cursor-position')
     elem.mode = ''
     elem.scale = ipcRenderer.sendSync('sai-canvas-zoom')
@@ -234,8 +268,7 @@ void(function() {
     hideControl()
   })
 
-  /*
-  attachDraggable(document.getElementById('moveControl'), (evt, elem) => {
+  attachDraggable(document.querySelectorAll('.control-move'), (evt, elem) => {
     document.body.classList.add('is-moving')
     elem.start = ipcRenderer.sendSync('get-cursor-position')
     elem.base = { x: window.screenX, y: window.screenY }
@@ -245,9 +278,8 @@ void(function() {
   }, (evt, elem) => {
     document.body.classList.remove('is-moving')
   })
-  */
 
-  attachAccessory(document.getElementById('moveLayer'), 'CONTROL')
+  attachAccessory(document.querySelectorAll('.layer-move'), 'CONTROL')
 })()
 
 function range(n) {
@@ -290,44 +322,56 @@ function nearestAngle(current, target) {
   return target
 }
 
-void(function() {
-  const pickerWidth = 150,
-    ringWidth = 15,
-    hw = pickerWidth / 2,
-    pt = (r, a) => ra2xy(r, a, hw, hw)
+function nearestRad(current, target) {
+  return nearestAngle(current * 180 / Math.PI, target * 180 / Math.PI) * Math.PI / 180
+}
 
-  const r = hw - ringWidth / 2,
-    ringStepCount = 6,
-    ringStepPoints = range(ringStepCount).map(i => [
-      pt(r, i     / ringStepCount * Math.PI*2),
-      pt(r, (i+1) / ringStepCount * Math.PI*2),
+void(function() {
+  const hw = contentSize / 2,
+    pt = (r, a) => ra2xy(r, a, hw, hw),
+    ln = (r, n, a) => range(n).map(i => [
+      pt(r, (i + a)     / n * Math.PI*2),
+      pt(r, (i + a + 1) / n * Math.PI*2),
+      r
     ])
 
-  const d = r - ringWidth / 2,
-    p1 = pt(d, 0),
-    p2 = pt(d, 120 / 180 * Math.PI),
-    p3 = pt(d, 240 / 180 * Math.PI)
+  const historyRingSize = config.historyRingSize,
+    historyRadius = hw - historyRingSize / 2,
+    historyStepPoints = ln(historyRadius, config.historyColorCount, -0.5)
+
+  const colorRingSize = config.colorRingSize,
+    ringRadius = hw - historyRingSize - colorRingSize / 2,
+    ringStepPoints = ln(ringRadius, 6, 0)
+
+  const pickerRadius = hw - historyRingSize - colorRingSize,
+    p1 = pt(pickerRadius, 0),
+    p2 = pt(pickerRadius, 120 / 180 * Math.PI),
+    p3 = pt(pickerRadius, 240 / 180 * Math.PI)
 
   // http://stackoverflow.com/questions/18206361/svg-multiple-color-on-circle-stroke
-  document.getElementById('colorPickerContainer').innerHTML =
-  `<svg id="colorPicker" width="100%" height="100%" viewbox="0 0 ${pickerWidth} ${pickerWidth}">
+  document.getElementById('main').appendChild(elemFromString(
+  `<svg id="colorPicker" width="100%" height="100%" viewbox="0 0 ${contentSize} ${contentSize}">
     <defs>
     ${ringStepPoints.map(([p1, p2], i) =>
       `<linearGradient id="rainbow${i}" gradientUnits="userSpaceOnUse"
-        x1="${p1.x}" y1="${p1.y}" x2="${p2.x}" y2="${p2.y}">
+          x1="${p1.x}" y1="${p1.y}" x2="${p2.x}" y2="${p2.y}">
         <stop offset="0%"   stop-color="hsl(${p1.a * 180 / Math.PI}, 100%, 50%)" />
         <stop offset="100%" stop-color="hsl(${p2.a * 180 / Math.PI}, 100%, 50%)" />
       </linearGradient>`
     ).join('')}
     </defs>
-    <g id="colorPickerRing" fill="none" stroke-width="${ringWidth}">
-    ${ringStepPoints.map(([p1, p2], i) =>
-      `<path
-        d="M ${p1.x} ${p1.y} A ${r} ${r} 0 0 1 ${p2.x} ${p2.y}"
-        stroke="url(#rainbow${i})" />`
+    <g class="color-picker-hue" fill="none" stroke-width="${colorRingSize}">
+    ${ringStepPoints.map(([p1, p2, r], i) =>
+      `<path d="M ${p1.x} ${p1.y} A ${r} ${r} 0 0 1 ${p2.x} ${p2.y}"
+          stroke="url(#rainbow${i})" />`
     ).join('')}
     </g>
-
+    <g class="color-picker-history" fill="none" stroke-width="${historyRingSize}">
+    ${historyStepPoints.map(([p1, p2, r], i) =>
+      `<path d="M ${p1.x} ${p1.y} A ${r} ${r} 0 0 1 ${p2.x} ${p2.y}"
+          class="color-picker-history-hsv" />`
+    ).join('')}
+    </g>
     <defs>
       <linearGradient id="fadeS" gradientUnits="userSpaceOnUse"
         x1="${p3.x}" y1="${p3.y}" x2="${p1.x}" y2="${p1.y}">
@@ -340,9 +384,9 @@ void(function() {
         <stop offset="100%" stop-color="#ffffff" />
       </linearGradient>
       <rect id="path0" fill="url(#fadeS)"
-        x="0" y="0" width="${pickerWidth}" height="${pickerWidth}" />
+        x="0" y="0" width="${contentSize}" height="${contentSize}" />
       <rect id="path1" fill="url(#fadeV)"
-        x="0" y="0" width="${pickerWidth}" height="${pickerWidth}" />
+        x="0" y="0" width="${contentSize}" height="${contentSize}" />
       <filter id="blend">
         <feImage xlink:href="#path0" result="layerS" x="0" y="0" />
         <feImage xlink:href="#path1" result="layerV" x="0" y="0" />
@@ -359,24 +403,21 @@ void(function() {
       </clipPath>
     </defs>
     <g id="colorPickerRotation" style="transform-origin:${hw}px ${hw}px">
-      <rect id="colorPickerTriangle"
-        clip-path="url(#clip)" filter="url(#blend)" width=${pickerWidth} height=${pickerWidth} />
-      <circle id="colorPickerHueIndicator" cx="${hw + r}" cy="${hw}" r="5"
+      <rect class="color-picker-sv"
+        clip-path="url(#clip)" filter="url(#blend)" width=${contentSize} height=${contentSize} />
+      <circle class="color-picker-hue"
+        cx="${hw + ringRadius}" cy="${hw}" r="5"
         fill="none" stroke="white" stroke-width="2" style="mix-blend-mode:exclusion" />
-      <circle id="colorPickerSVIndicator"  cx="${hw + d}" cy="${hw}" r="3"
+      <circle id="colorPickerSVIndicator" class="color-picker-sv"
+        cx="${hw + pickerRadius}" cy="${hw}" r="3"
         fill="none" stroke="white" stroke-width="2" style="mix-blend-mode:exclusion" />
     </g>
-  </svg>`
+  </svg>`))
 
   const cpElem = document.getElementById('colorPicker'),
-    cpHueIndicator = document.getElementById('colorPickerHueIndicator'),
     cpSVIndicator = document.getElementById('colorPickerSVIndicator'),
     cpRotation = document.getElementById('colorPickerRotation'),
-    cpTriangle = document.getElementById('colorPickerTriangle'),
-    cpHueRing = document.getElementById('colorPickerRing'),
-    cpColor = document.getElementById('colorPickerColor'),
-    cpColorCompare = document.getElementById('colorPickerCompare'),
-
+    filterMatrix = document.getElementById('layerRGB'),
     matrixValues = [
       x => ` 1 0 0 0 0 ${x} 0 0 0 0 0 0 0 0 0 0 0 0 0 1`,
       x => ` ${x} 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 1`,
@@ -384,11 +425,9 @@ void(function() {
       x => ` 0 0 0 0 0 ${x} 0 0 0 0 1 0 0 0 0 0 0 0 0 1`,
       x => ` ${x} 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 1`,
       x => ` 1 0 0 0 0 0 0 0 0 0 ${x} 0 0 0 0 0 0 0 0 1`,
-    ],
-    filterMatrix = document.getElementById('layerRGB')
+    ]
 
   let currentHSV = { h: 0, s: 1, v: 1 }
-
   function setHSV(h, s, v) {
     while (h < 0) h += 360
     while (h >= 360) h -= 360
@@ -399,17 +438,18 @@ void(function() {
 
     const index = Math.floor(h / 60),
       extra = 1 - Math.abs(h / 60 % 2 - 1)
-    layerRGB.setAttribute('values', matrixValues[index](extra))
+    filterMatrix.setAttribute('values', matrixValues[index](extra))
 
     const { x, y } = getXYFromSV(s, v)
     cpSVIndicator.setAttribute('cx', x)
     cpSVIndicator.setAttribute('cy', y)
 
     const c = hsv2hsl(h, s, v)
-    cpColor.style.background = `hsl(${c.h}, ${c.s * 100}%, ${c.l * 100}%)`
+    ;[].forEach.call(document.querySelectorAll('.color-picker-color'), elem => {
+      elem.style.background = `hsl(${c.h}, ${c.s * 100}%, ${c.l * 100}%)`
+    })
 
     currentHSV = { h, s, v }
-    ipcRenderer.send('sai-color-hsv', h, s, v)
   }
 
   function getSVFromXY(x, y) {
@@ -436,31 +476,74 @@ void(function() {
       v = { x: x - c.x, y: y - c.y },
       r = hypot(v.x, v.y),
       a = Math.atan2(v.y, v.x)
-    return pt(r * pickerWidth / rect.width, a - currentHSV.h / 180 * Math.PI)
+    return pt(r * contentSize / rect.width, a - currentHSV.h / 180 * Math.PI)
   }
 
   function setSVFromPoint(px, py) {
     const { x, y } = mapXYtoLocal(px, py),
       { s, v } = getSVFromXY(x, y)
     setHSV(currentHSV.h, s, v)
+    ipcRenderer.send('sai-color-hsv', currentHSV.h, currentHSV.s, currentHSV.v)
   }
 
   function setHueFromPoint(px, py) {
     const { a } = mapXYtoLocal(px, py),
       h = a * 180 / Math.PI + currentHSV.h
     setHSV(h, currentHSV.s, currentHSV.v)
+    ipcRenderer.send('sai-color-hsv', currentHSV.h, currentHSV.s, currentHSV.v)
   }
 
-  attachDraggable([cpHueRing, cpHueIndicator], (evt, elem) => {
+  let colorHistory = ['0,0,0.95']
+  function addColorHistory(h, s, v) {
+    colorHistory = [`${h},${s},${v}`].concat(colorHistory)
+    colorHistory = Array.from(new Set(colorHistory)).slice(0, config.historyColorCount)
+    const colorHSL = colorHistory
+      .map(hsv => hsv2hsl.apply(null, hsv.split(',').map(parseFloat)))
+      .map(hsl => `hsl(${hsl.h}, ${hsl.s * 100}%, ${hsl.l * 100}%)`)
+    ;[].forEach.call(document.querySelectorAll('.color-picker-history-hsv'), (elem, index) => {
+      elem.setAttribute('color-hsv', colorHistory[index] || colorHistory[colorHistory.length - 1])
+      elem.setAttribute('stroke', colorHSL[index] || colorHSL[colorHSL.length - 1])
+    })
+    ;[].forEach.call(document.querySelectorAll('.color-picker-color-bg'), elem => {
+      elem.style.background = colorHSL[0]
+    })
+  }
+
+  function setColorFromHistoryPoint(px, py) {
+    const rect = cpElem.getBoundingClientRect(),
+      c = { x: (rect.left + rect.right) / 2, y: (rect.top + rect.bottom) / 2 },
+      k = { x: px - c.x, y: py - c.y },
+      a = Math.atan2(k.y, k.x),
+      p = historyStepPoints.map(v => v.map(p => nearestRad(a, p.a))),
+      r = p.find(b => b[0] <= a && a <= b[1]),
+      q = document.querySelectorAll('.color-picker-history-hsv'),
+      e = q[p.indexOf(r)] || q[q.length - 1],
+      [h, s, v] = e.getAttribute('color-hsv').split(',').map(parseFloat)
+    ;[].forEach.call(q, e => e.classList.remove('active'))
+    e.classList.add('active')
+    setHSV(h, s, v)
+    ipcRenderer.send('sai-color-hsv', currentHSV.h, currentHSV.s, currentHSV.v)
+  }
+
+  attachDraggable(document.querySelectorAll('.color-picker-hue'), (evt, elem) => {
     setHueFromPoint(evt.pageX, evt.pageY)
   }, (evt, elem) => {
     setHueFromPoint(evt.pageX, evt.pageY)
   })
 
-  attachDraggable([cpTriangle, cpSVIndicator], (evt, elem) => {
+  attachDraggable(document.querySelectorAll('.color-picker-sv'), (evt, elem) => {
     setSVFromPoint(evt.pageX, evt.pageY)
   }, (evt, elem) => {
     setSVFromPoint(evt.pageX, evt.pageY)
+  })
+
+  attachDraggable(document.querySelectorAll('.color-picker-history-selector'), (evt, elem) => {
+    document.body.classList.add('show-color-history')
+    setColorFromHistoryPoint(evt.pageX, evt.pageY)
+  }, (evt, elem) => {
+    setColorFromHistoryPoint(evt.pageX, evt.pageY)
+  }, (evt, elem) => {
+    document.body.classList.remove('show-color-history')
   })
 
   attachAccessory(cpElem, 'SPACE', null, null, (evt, elem) => evt.target !== elem)
@@ -468,7 +551,6 @@ void(function() {
   window.addEventListener('before-window-shown', evt => {
     const { h, s, v } = ipcRenderer.sendSync('sai-color-hsv')
     setHSV(h, s, v)
-    const c = hsv2hsl(h, s, v)
-    cpColorCompare.style.background = `hsl(${c.h}, ${c.s * 100}%, ${c.l * 100}%)`
+    addColorHistory(h, s, v)
   })
 })()

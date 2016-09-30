@@ -32,16 +32,6 @@ function cumulativeThrottled(func, time) {
   }
 }
 
-const DEFAULT_CONFIG = {
-  //
-  autoStart: false,
-  saiPath: '',
-  //
-  width: 320,
-  height: 320,
-  colorPickerSize: 150,
-}
-
 const CTRL_WND_OPTS = {
   frame: false,
   transparent: true,
@@ -49,6 +39,7 @@ const CTRL_WND_OPTS = {
   skipTaskbar: true,
   alwaysOnTop: true,
   acceptFirstMouse: true,
+  resizable: false,
 }
 
 const ASK_START_SAI = {
@@ -68,7 +59,14 @@ let win, config
 app.once('ready', _ => {
   const packageJSON = require(path.join(__dirname, 'package.json')),
     configPath = path.join(app.getPath('home'), `${packageJSON.name}.json`)
-  config = fs.existsSync(configPath) ? require(configPath) : DEFAULT_CONFIG
+  config = Object.assign(packageJSON.defaultConfig, fs.existsSync(configPath) ? require(configPath) : { })
+
+  const query = encodeURIComponent(JSON.stringify(config))
+  win = new BrowserWindow(CTRL_WND_OPTS)
+  win.loadURL(`file://${__dirname}/html/index.html?${query}`)
+  if (config.showDevTools) {
+    win.webContents.openDevTools({ mode: 'detach' })
+  }
 
   hook.start()
   if (!hook.isOK()) {
@@ -91,15 +89,9 @@ app.once('ready', _ => {
   hook.errorCount = 0
   setInterval(_ => {
     if (hook.isOK()) {
-      if (!win) {
-        const query = encodeURIComponent(JSON.stringify(config))
-        win = new BrowserWindow(CTRL_WND_OPTS)
-        win.loadURL(`file://${__dirname}/html/index.html?${query}`)
-        win.webContents.openDevTools({ mode: 'detach' })
-      }
       hook.errorCount = 0
     }
-    else if (++ hook.errorCount < 5) {
+    else if (++ hook.errorCount < 3) {
       hook.start()
     }
     else {
@@ -160,13 +152,14 @@ hook.on('touch-up', (x, y, n) => {
   if (n == 0) {
     const now = Date.now()
     for (var i = 0; tapTicks[i + 1] > now - 200; i ++);
-    if (i == 2) {
-      helper.simulateKey('TAB', true)
-      helper.simulateKey('TAB', false)
-    }
-    else if (i == 3) {
-      helper.simulateKey('F11', true)
-      helper.simulateKey('F11', false)
+    const shortcuts = config.tapShortcuts && config.tapShortcuts[i - 1]
+    if (shortcuts) {
+      shortcuts.split(' ').filter(keys => keys).forEach(keys => {
+        keys.split('+').filter(key => key)
+          .filter(key => helper.simulateKey(key, true) || true)
+          .reverse()
+          .filter(key => helper.simulateKey(key, false) || true)
+      })
     }
     else if (i) {
       console.log('tap', i)

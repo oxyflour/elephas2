@@ -6,44 +6,33 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
+  margin: 0;
+  padding: 0;
 }
 * {
   -webkit-user-select: none;
 }
-.main {
+#main {
   text-align: center;
   position: relative;
-  transition: opacity 0.2s;
-  opacity: 0;
 }
-.main .float-button {
+#main .float-button {
   position: absolute;
   left: 50%;
   top: 50%;
   cursor: pointer;
   background: #eee;
   border-radius: 50%;
-  width: 40px;
-  height: 40px;
-  line-height: 40px;
   text-align: center;
   transition: transform 0.2s;
 }
-body.show .main {
-  opacity: 1;
-}
-body.no-anim .main {
-  transition: none;
-}
-.main .container {
-  width: 100%;
-  height: 100%;
+body > .content {
   position: absolute;
-  left: 0;
-  top: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  transition: opacity 0.2s;
+  opacity: 0;
+}
+body.show > .content {
+  opacity: 1;
 }
 
 body.is-moving,
@@ -58,16 +47,11 @@ body.is-rotating,
 body.is-rotating * {
   cursor: nwse-resize;
 }
-body.is-transparent .main,
-body.is-manipulating .main {
+body.is-transparent > .content,
+body.is-manipulating > .content {
   opacity: 0;
 }
 
-#moveControl,
-#moveLayer,
-#manipulateCanvas {
-  cursor: grabbing;
-}
 #zoom {
   position: absolute;
   width: 100%;
@@ -92,11 +76,42 @@ body.is-manipulating #zoom {
 #colorPickerRotation {
   transition: transform 0.1s;
 }
-#colorPickerCompare {
+
+.color-picker-history {
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+body.show-color-history .color-picker-history {
+  opacity: 1;
+}
+
+.color-picker-history-selector {
   overflow: hidden;
 }
-#colorPickerColor {
+
+.color-picker-history-selector .color-picker-color-bg {
+  margin-left: 50%;
   width: 50%;
   height: 100%;
   display: block;
+}
+
+.color-picker-history-hsv {
+  opacity: 0.3;
+}
+
+.color-picker-history-hsv.active {
+  opacity: 1;
+}
+
+#control {
+  right: 0;
+  top: 0;
+}
+#control .ctrl {
+  display: inline-block;
+  float: left;
+  padding: 10px 5px;
+  cursor: pointer;
 }

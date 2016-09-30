@@ -11,7 +11,7 @@ typedef LPARAM HSV;
 using std::map;
 
 class SaiConnector {
-protected:
+private:
   map<int, HWND> wnds;
 
 public:

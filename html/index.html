@@ -3,27 +3,18 @@
 <head>
   <title></title>
   <link rel="stylesheet" href="style.css">
-  <link rel="stylesheet" href="https://cdn.bootcss.com/font-awesome/4.6.3/css/font-awesome.min.css">
+  <link rel="stylesheet" href="http://www.webhostinghub.com/glyphs/css/whhg.css">
 </head>
 <body>
-<div id="main" class="main">
-  <div id="colorPickerContainer" class="container"></div>
-  <span class="float-button"><span shortcut-keys="DELETE" class="fa fa-paint-brush"></span></span>
-  <span class="float-button"><span shortcut-keys="" class="fa fa-remove"></span></span>
-  <span class="float-button"><span shortcut-keys="U" class="fa fa-reply"></span></span>
-  <span class="float-button"><span shortcut-keys="U" class="fa fa-reply-all" keep-open></span></span>
-  <span class="float-button" id="colorPickerCompare"><span id="colorPickerColor"></span></span>
-  <span class="float-button"><span shortcut-keys="N" class="fa fa-pencil"></span></span>
-  <span class="float-button"><span shortcut-keys="E" class="fa fa-eraser"></span></span>
-  <span class="float-button"><span shortcut-keys="V" class="fa fa-paint-brush"></span></span>
-  <span class="float-button"><span></span></span>
-  <span class="float-button">
-    <span id="manipCanvas" title="drag to zoom/rotate canvas" class="fa fa-refresh"></span>
-  </span>
-  <span class="float-button">
-    <span id="moveLayer" title="drag to move layer" class="fa fa-arrows"></span>
-  </span>
+<div id="control" class="content">
+  <div class="ctrl canvas-zoom-rotate" title="drag to zoom/rotate canvas">
+    <i class="icon-resizeupright"></i>
+  </div>
+  <div class="ctrl layer-move" title="drag to move layer">
+    <i class="icon-move"></i>
+  </div>
 </div>
+<div id="main" class="content auto-size"></div>
 <div id="zoom">
   <div id="zoomStatus"></div>
 </div>

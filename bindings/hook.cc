@@ -78,7 +78,7 @@ LRESULT CALLBACK GetMsgProc(int nCode, WPARAM wParam, LPARAM lParam) {
         auto i = pi.pointerInfo.pointerId;
         auto x = (pi.rcContact.left + pi.rcContact.right) / 2;
         auto y = (pi.rcContact.top + pi.rcContact.bottom) / 2;
-        auto t = GetTickCount();
+        auto t = pi.pointerInfo.dwTime;
         if (msg->message == WM_POINTERDOWN) {
           thisTouchManip->ProcessDownWithTime(i, x, y, t);
         }
