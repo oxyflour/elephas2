@@ -40,7 +40,7 @@ HRESULT TouchManipulation::ProcessMoveWithTime(MANIPULATOR_ID id, FLOAT x, FLOAT
 
 HRESULT TouchManipulation::ProcessUpWithTime(MANIPULATOR_ID id, FLOAT x, FLOAT y, DWORD time) {
   manipulateProc->ProcessUpWithTime(id, x, y, time);
-  ptCount --;
+  ptCount = ptCount > 0 ? ptCount - 1 : 0;
   PostMessage(NULL, msgVal + 2, ptCount, MAKELPARAM(x, y));
   if (ptCount == 0) {
     manipulateProc->CompleteManipulation();
