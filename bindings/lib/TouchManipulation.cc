@@ -26,25 +26,32 @@ TouchManipulation::TouchManipulation(int msgVal): msgVal(msgVal), ptCount(0), re
   pConnPoint->Advise(this, &dwCookie);
 }
 
-HRESULT TouchManipulation::ProcessDownWithTime(MANIPULATOR_ID id, FLOAT x, FLOAT y, DWORD time) {
-  manipulateProc->ProcessDownWithTime(id, x, y, time);
+void TouchManipulation::completeManipulation() {
+  if (ptCount > 0) {
+    ptCount = 0;
+    manipulateProc->CompleteManipulation();
+  }
+}
+
+HRESULT TouchManipulation::processDownWithTime(MANIPULATOR_ID id, FLOAT x, FLOAT y, DWORD t) {
+  manipulateProc->ProcessDownWithTime(id, x, y, t);
   ptCount ++;
   PostMessage(NULL, msgVal, ptCount, MAKELPARAM(x, y));
   return S_OK;
 }
 
-HRESULT TouchManipulation::ProcessMoveWithTime(MANIPULATOR_ID id, FLOAT x, FLOAT y, DWORD time) {
-  manipulateProc->ProcessMoveWithTime(id, x, y, time);
+HRESULT TouchManipulation::processMoveWithTime(MANIPULATOR_ID id, FLOAT x, FLOAT y, DWORD t) {
+  manipulateProc->ProcessMoveWithTime(id, x, y, t);
   return S_OK;
 }
 
-HRESULT TouchManipulation::ProcessUpWithTime(MANIPULATOR_ID id, FLOAT x, FLOAT y, DWORD time) {
-  manipulateProc->ProcessUpWithTime(id, x, y, time);
-  ptCount = ptCount > 0 ? ptCount - 1 : 0;
-  PostMessage(NULL, msgVal + 2, ptCount, MAKELPARAM(x, y));
+HRESULT TouchManipulation::processUpWithTime(MANIPULATOR_ID id, FLOAT x, FLOAT y, DWORD t) {
+  manipulateProc->ProcessUpWithTime(id, x, y, t);
+  ptCount --;
   if (ptCount == 0) {
     manipulateProc->CompleteManipulation();
   }
+  PostMessage(NULL, msgVal + 2, ptCount, MAKELPARAM(x, y));
   return S_OK;
 }
 

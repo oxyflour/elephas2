@@ -32,6 +32,16 @@ function cumulativeThrottled(func, time) {
   }
 }
 
+function simulateShortcut(shortcuts) {
+  shortcuts.split(' ').filter(keys => keys).forEach(keys => {
+    keys.split('+')
+      .filter(key => key)
+      .filter(key => helper.simulateKey(key,  true) || true)
+      .reverse()
+      .filter(key => helper.simulateKey(key, false) || true)
+  })
+}
+
 const CTRL_WND_OPTS = {
   frame: false,
   transparent: true,
@@ -54,13 +64,16 @@ const FIND_SAI_DIAG = {
   filters: [{ name: 'sai2.exe', extensions: ['exe'] }],
 }
 
-let win, config
+let win
+
+const packageJSON = require(path.join(__dirname, 'package.json')),
+  appConfigPath = path.join(__dirname, 'elephas2.json'),
+  defaultConfig = require(appConfigPath),
+  homeConfigPath = path.join(app.getPath('home'), `${packageJSON.name}.json`),
+  configPath = fs.existsSync(homeConfigPath) ? homeConfigPath : appConfigPath,
+  config = Object.assign(defaultConfig, require(configPath))
 
 app.once('ready', _ => {
-  const packageJSON = require(path.join(__dirname, 'package.json')),
-    configPath = path.join(app.getPath('home'), `${packageJSON.name}.json`)
-  config = Object.assign(packageJSON.defaultConfig, fs.existsSync(configPath) ? require(configPath) : { })
-
   const query = encodeURIComponent(JSON.stringify(config))
   win = new BrowserWindow(CTRL_WND_OPTS)
   win.loadURL(`file://${__dirname}/html/index.html?${query}`)
@@ -69,7 +82,7 @@ app.once('ready', _ => {
   }
 
   hook.start()
-  if (!hook.isOK()) {
+  if (!hook.isHooked()) {
     if (!config.autoStart) {
       const askStartResult = dialog.showMessageBox(ASK_START_SAI)
       if (askStartResult !== 0) {
@@ -86,19 +99,25 @@ app.once('ready', _ => {
     fs.writeFileSync(configPath, JSON.stringify(config, null, 2))
   }
 
-  hook.errorCount = 0
+  hook.retryTimeout = config.hookRetryTimeout
   setInterval(_ => {
-    if (hook.isOK()) {
-      hook.errorCount = 0
+    if (!hook.isActive()) {
+      console.log('another instance is running. quit.')
+      hook.destroy()
+      app.quit()
     }
-    else if (++ hook.errorCount < 3) {
+    else if (!hook.isHooked() && !(hook.retryTimeout > 0)) {
+      console.log('unable to find sai window. quit.')
+      app.quit()
+    }
+    else if (!hook.isHooked()) {
+      hook.retryTimeout -= 500
       hook.start()
     }
     else {
-      console.log('sai seems closed. quit.')
-      app.quit()
+      hook.retryTimeout = config.hookRetryTimeout
     }
-  }, 1000)
+  }, 500)
 })
 
 app.once('window-all-closed', _ => {
@@ -133,7 +152,9 @@ const tapTicks = { }
 
 hook.on('touch-down', (x, y, n) => {
   // taps
-  tapTicks[n] = Date.now()
+  if (n > 0) {
+    tapTicks[n] = Date.now()
+  }
   // zoom/rotate
   clearTimeout(hook.startManipulation)
   if (n != 2) {
@@ -148,26 +169,18 @@ hook.on('touch-down', (x, y, n) => {
 })
 
 hook.on('touch-up', (x, y, n) => {
-  // taps
+  // check taps
   if (n == 0) {
     const now = Date.now()
     for (var i = 0; tapTicks[i + 1] > now - 200; i ++);
     const shortcuts = config.tapShortcuts && config.tapShortcuts[i - 1]
     if (shortcuts) {
-      shortcuts.split(' ').filter(keys => keys).forEach(keys => {
-        keys.split('+').filter(key => key)
-          .filter(key => helper.simulateKey(key, true) || true)
-          .reverse()
-          .filter(key => helper.simulateKey(key, false) || true)
-      })
-    }
-    else if (i) {
-      console.log('tap', i)
+      simulateShortcut(shortcuts)
     }
   }
   // zoom/rotate
+  clearTimeout(hook.startManipulation)
   if (n != 2) {
-    clearTimeout(hook.startManipulation)
     hook.manipulationStatus = null
   }
 })
@@ -176,10 +189,10 @@ hook.moveCanvas = cumulativeThrottled(hook.moveCanvas.bind(hook), 30)
 hook.on('touch-gesture', (x, y, s, r) => {
   if (hook.manipulationStatus) {
     const { scale, angle, dx, dy } = hook.manipulationStatus
-    // 
+    // FIXME: These seems no way to block default pinch-zoom behavior (CTRL+MOUSEWHEEL),
+    //        so we make use of it
     //hook.setSaiCanvasZoom(s * scale)
     hook.setSaiCanvasRotation(Math.floor((r + angle) / 2) * 2)
-    // FIXME:
     helper.simulateKey('CONTROL', false)
     hook.moveCanvas(x - dx, y - dy)
     hook.manipulationStatus.dx = x
@@ -189,6 +202,11 @@ hook.on('touch-gesture', (x, y, s, r) => {
 
 ipcMain.on('get-cursor-position', evt => {
   evt.returnValue = electron.screen.getCursorScreenPoint()
+})
+
+ipcMain.on('save-config', (evt, key, val) => {
+  config[key] = val
+  fs.writeFileSync(configPath, JSON.stringify(config, null, 2))
 })
 
 ipcMain.on('show-window', (evt, show) => {

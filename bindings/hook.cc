@@ -61,8 +61,7 @@ LRESULT CALLBACK GetMsgProc(int nCode, WPARAM wParam, LPARAM lParam) {
       msg->message == WM_LBUTTONDOWN || msg->message == WM_LBUTTONUP) {
       PostMessage(thisMsgWnd, WM_USER + msg->message, msg->wParam, msg->lParam);
     }
-    else if (msg->message == WM_POINTERDOWN ||
-      msg->message == WM_POINTERUP ||
+    else if (msg->message == WM_POINTERDOWN || msg->message == WM_POINTERUP ||
       msg->message == WM_POINTERUPDATE) {
       auto pid = GET_POINTERID_WPARAM(msg->wParam);
       POINTER_INPUT_TYPE pt;
@@ -71,6 +70,7 @@ LRESULT CALLBACK GetMsgProc(int nCode, WPARAM wParam, LPARAM lParam) {
         POINTER_PEN_INFO pi;
         GetPointerPenInfo(pid, &pi);
         PostMessage(thisMsgWnd, WM_SAI_PEN_POINTER, msg->message, pi.penFlags);
+        thisTouchManip->completeManipulation();
       }
       else if (pt == PT_TOUCH) {
         POINTER_TOUCH_INFO pi;
@@ -80,13 +80,13 @@ LRESULT CALLBACK GetMsgProc(int nCode, WPARAM wParam, LPARAM lParam) {
         auto y = (pi.rcContact.top + pi.rcContact.bottom) / 2;
         auto t = pi.pointerInfo.dwTime;
         if (msg->message == WM_POINTERDOWN) {
-          thisTouchManip->ProcessDownWithTime(i, x, y, t);
+          thisTouchManip->processDownWithTime(i, x, y, t);
         }
         else if (msg->message == WM_POINTERUPDATE) {
-          thisTouchManip->ProcessMoveWithTime(i, x, y, t);
+          thisTouchManip->processMoveWithTime(i, x, y, t);
         }
         else if (msg->message == WM_POINTERUP) {
-          thisTouchManip->ProcessUpWithTime(i, x, y, t);
+          thisTouchManip->processUpWithTime(i, x, y, t);
         }
       }
     }
@@ -227,8 +227,12 @@ void off(const FunctionCallbackInfo<Value>& args) {
   thisEmitter->off(args[0]->ToString(), Local<Function>::Cast(args[1]));
 }
 
-void isOK(const FunctionCallbackInfo<Value>& args) {
-  args.GetReturnValue().Set(thisHook->isOK());
+void isActive(const FunctionCallbackInfo<Value>& args) {
+  args.GetReturnValue().Set(FindWindow(NULL, WINDOW_TITLE_UUID) == thisMsgWnd);
+}
+
+void isHooked(const FunctionCallbackInfo<Value>& args) {
+  args.GetReturnValue().Set(thisHook->isHooked());
 }
 
 void start(const FunctionCallbackInfo<Value>& args) {
@@ -305,9 +309,9 @@ void start(void *arg) {
   HMODULE hInst;
   GetModuleHandleEx(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS, (char *) GetMsgProc, &hInst);
 
-  auto hWnd = CreateWindow("STATIC", WINDOW_TITLE_UUID, 0,
+  thisMsgWnd = CreateWindow("STATIC", WINDOW_TITLE_UUID, 0,
     0, 0, 0, 0, HWND_MESSAGE, NULL, hInst, NULL);
-  SetWindowLongPtr(hWnd, GWLP_WNDPROC, (LONG_PTR) WindowProc);
+  SetWindowLongPtr(thisMsgWnd, GWLP_WNDPROC, (LONG_PTR) WindowProc);
 
   MSG msg;
   while (GetMessage(&msg, NULL, 0, 0)) {
@@ -324,7 +328,8 @@ void init(Local<Object> exports) {
   uv_thread_t thread;
   uv_thread_create(&thread, start, NULL);
 
-  NODE_SET_METHOD(exports, "isOK", isOK);
+  NODE_SET_METHOD(exports, "isActive", isActive);
+  NODE_SET_METHOD(exports, "isHooked", isHooked);
   NODE_SET_METHOD(exports, "start", start);
   // should offer this `destroy` method as node::AtExit is not really working
   // see https://github.com/nodejs/node/issues/1894

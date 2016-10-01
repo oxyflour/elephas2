@@ -27,6 +27,7 @@ function attachDraggable(elem, start, move, finish, ignore) {
   function _finish(evt) {
     finish && finish(evt, elem)
     window.removeEventListener('mousemove', _move)
+    window.removeEventListener('mouseup', _finish)
   }
 
   elem.addEventListener('mousedown', _start)
@@ -78,7 +79,7 @@ function attachAccessory(elem, keys, start, finish, ignore) {
 
 function simulateShorcut(keys) {
   ipcRenderer.send('activate-sai-window')
-  keys.split(' ').filter(keys => keys).forEach(keys => {
+  keys && keys.split(' ').filter(keys => keys).forEach(keys => {
     keys.split('+').filter(key => key)
       .filter(key => ipcRenderer.send('simulate-key', key, true) || true)
       .reverse()
@@ -92,66 +93,40 @@ function elemFromString(string) {
   return tpl.content.firstChild
 }
 
-void(function() {
-  ;[].forEach.call(document.querySelectorAll('body > .content.auto-size'), elem => {
-    elem.style.width = elem.style.height = `${contentSize}px`
-  })
+function getElementCenter(elem) {
+  const rect = elem.getBoundingClientRect()
+  return { x: (rect.left + rect.right) / 2, y: (rect.top + rect.bottom) / 2 }
+}
 
-  const floatButtons = [ ]
-  config.floatButtons && config.floatButtons.forEach(data => {
-    const elem = elemFromString(
-      data.usage === 'color-history' ?
-      `<span title="${data.title || ''}"
-          class="float-button color-picker-color color-picker-history-selector">
-        <i class="color-picker-color-bg"></i>
-      </span>` :
-      `<span class="float-button" title="${data.title || ''}"
-        shortcut-keys="${data.key || ''}" keep-open="${data.keepOpen || ''}">
-        <i class="${data.cls || ''}"></i>
-      </span>`)
-    elem.style.width = elem.style.height =
-      elem.style.lineHeight = `${config.floatButtonSize}px`
-    floatButtons.push(elem)
-    main.appendChild(elem)
-  })
-
-  function updateFloatButtons(offset) {
-    const radius = (contentSize + config.floatButtonSize) / 2 + offset
-    floatButtons.forEach((elem, index) => {
-      const pos = ra2xy(radius, - index / floatButtons.length * 2 * Math.PI)
-      elem.style.transform = `translate(-50%, -50%) translate(${pos.x}px, ${pos.y}px)`
-    })
-  }
-
-  window.addEventListener('before-window-shown', _ => updateFloatButtons(0))
-  window.addEventListener('before-window-hidden', _ => updateFloatButtons(-15))
-})()
+;[].forEach.call(document.querySelectorAll('body > .content.auto-size'), elem => {
+  elem.style.width = elem.style.height = `${contentSize}px`
+})
 
 void(function() {
   function showWindow() {
     document.body.classList.add('show')
+    window.dispatchEvent(new Event('before-window-shown'))
     if (!window.isShown) {
-      window.dispatchEvent(new Event('before-window-shown'))
       const { x, y } = ipcRenderer.sendSync('get-cursor-position')
       window.resizeTo(config.width, config.height)
       window.moveTo(x - config.width / 2, y - config.height / 2)
       ipcRenderer.send('show-window', true)
       window.isShown = true
-      window.dispatchEvent(new Event('after-window-shown'))
     }
+    window.dispatchEvent(new Event('after-window-shown'))
   }
 
   function hideWindow() {
     document.body.classList.remove('show')
     window.dispatchEvent(new Event('before-window-hidden'))
     document.body.addEventListener('webkitTransitionEnd', function once() {
-      document.body.removeEventListener('webkitTransitionEnd', once)
       if (!document.body.classList.contains('show')) {
+        document.body.removeEventListener('webkitTransitionEnd', once)
         ipcRenderer.send('show-window', false)
         ipcRenderer.send('activate-sai-window')
         window.isShown = false
+        window.dispatchEvent(new Event('after-window-hidden'))
       }
-      window.dispatchEvent(new Event('after-window-hidden'))
     })
   }
 
@@ -191,9 +166,8 @@ void(function() {
 
   window.addEventListener('keyup', evt => {
     if (evt.keyCode === triggerKeyCode &&
-        triggerKeyDown && !(triggerKeyDown = false) &&
-        !mouseLeftDown) {
-      !triggerButtonDown && hideWindow()
+        triggerKeyDown && !(triggerKeyDown = false)) {
+      !triggerButtonDown && !mouseLeftDown && hideWindow()
     }
   })
 
@@ -209,26 +183,106 @@ void(function() {
     }
   })
 
-  ;[].forEach.call(document.querySelectorAll('[shortcut-keys]'), elem => {
-    elem.addEventListener('click', e => {
-      elem.getAttribute('keep-open') || hideWindow()
-      simulateShorcut(elem.getAttribute('shortcut-keys'))
-    })
+  window.addEventListener('request-hide-window', evt => {
+    hideWindow()
   })
+})()
+
+void(function() {
+  let showChildTimeout
+
+  const floatButtons = (config.floatButtons || [ ]).map((data, index) => {
+    const elem = elemFromString(
+      data.usage === 'color-history' ?
+      `<span index="${index}" title="${data.title || ''}"
+          class="float-button color-picker-color color-picker-history-selector">
+        <i class="color-picker-color-bg"></i>
+      </span>` :
+      `<span index="${index}" title="${data.title || ''}"
+          class="float-button"
+          shortcut-keys="${data.key || ''}"
+          keep-open="${data.keepOpen || ''}">
+        <i class="${data.cls || ''}"></i>
+      </span>`)
+    elem.style.width = elem.style.height =
+      elem.style.lineHeight = `${config.floatButtonSize}px`
+    main.appendChild(elem)
+    return elem
+  })
+
+  function initFloatChild(index) {
+    const q = document.querySelectorAll('.float-button-child-item'),
+      children = config.floatButtons[index].children || [ ]
+      iconFont = document.createElement('div')
+    iconFont.style.display = 'none'
+    document.body.appendChild(iconFont)
+    ;[].forEach.call(q, (elem, i) => {
+      const offset = index > q.length / 2 ? i + index : q.length * 2 - (i + index),
+        data = children[offset % q.length] || { }
+      elem.setAttribute('shortcut-keys', data.key || '')
+      elem.setAttribute('keep-open', data.keepOpen || '')
+      elem.title = data.title || ''
+      iconFont.className = data.cls
+      const style = getComputedStyle(iconFont, ':before')
+      elem.style.fontFamily = style.fontFamily
+      elem.innerHTML = style.content.substr(1, 1)
+    })
+    document.body.removeChild(iconFont)
+  }
+
+  function setActiveFloatChild(x, y) {
+    const q = document.querySelectorAll('.float-button-child-item'),
+      w = (config.historyRingSize + config.colorRingSize) / 2,
+      c = [].map.call(q, e => getElementCenter(e)),
+      e = [].find.call(q, (e, i) => x >= c[i].x-w && x <= c[i].x+w && y >= c[i].y-w && y <= c[i].y+w)
+    ;[].forEach.call(q, e => e.classList.remove('active'))
+    e && e.classList.add('active')
+  }
+
+  const statusElem = document.getElementById('status')
+  floatButtons.forEach(elem => attachDraggable(elem, (evt, elem) => {
+    clearTimeout(showChildTimeout)
+    showChildTimeout = setTimeout(_ => {
+      document.body.classList.add('show-float-child')
+    }, 200)
+    initFloatChild(parseInt(elem.getAttribute('index')))
+    setActiveFloatChild(evt.pageX, evt.pageY)
+    statusElem.innerHTML = elem.title || ''
+  }, (evt, elem) => {
+    setActiveFloatChild(evt.pageX, evt.pageY)
+    statusElem.innerHTML = (document.querySelector('.float-button-child-item.active') || { }).title || ''
+  }, (evt, elem) => {
+    const target = document.body.classList.contains('show-float-child') ?
+      document.querySelector('.float-button-child-item.active') : elem
+    if (target) {
+      simulateShorcut(target.getAttribute('shortcut-keys'))
+      target.getAttribute('keep-open') || window.dispatchEvent(new Event('request-hide-window'))
+    }
+    clearTimeout(showChildTimeout)
+    showChildTimeout = setTimeout(_ => document.body.classList.remove('show-float-child'), 100)
+    statusElem.innerHTML = ''
+  }, (evt, elem) => {
+    return elem.classList.contains('color-picker-history-selector')
+  }))
+
+  function updateFloatButtons(offset) {
+    const radius = (contentSize + config.floatButtonSize) / 2 + offset
+    floatButtons.forEach((elem, index) => {
+      const pos = ra2xy(radius, - index / floatButtons.length * 2 * Math.PI)
+      elem.style.transform = `translate(-50%, -50%) translate(${pos.x}px, ${pos.y}px)`
+    })
+  }
+
+  window.addEventListener('before-window-shown',  _ => updateFloatButtons(0))
+  window.addEventListener('before-window-hidden', _ => updateFloatButtons(-15))
 })()
 
 void(function() {
   const zoomStatus = document.getElementById('zoomStatus')
 
-  function hideControl() {
-    clearTimeout(hideControl.debounce)
-    hideControl.debounce = setTimeout(_ => {
-      document.body.classList.remove('is-manipulating', 'is-zooming', 'is-rotating')
-    }, 300)
-  }
-
+  let hideDebounce
   window.addEventListener('before-window-shown', evt => {
-    clearTimeout(hideControl.debounce)
+    clearTimeout(hideDebounce)
     document.body.classList.remove('is-manipulating', 'is-zooming', 'is-rotating')
   })
 
@@ -265,7 +319,10 @@ void(function() {
       document.body.classList.add(elem.mode)
     }
   }, (evt, elem) => {
-    hideControl()
+    clearTimeout(hideDebounce)
+    hideDebounce = setTimeout(_ => {
+      document.body.classList.remove('is-manipulating', 'is-zooming', 'is-rotating')
+    }, 300)
   })
 
   attachDraggable(document.querySelectorAll('.control-move'), (evt, elem) => {
@@ -277,6 +334,12 @@ void(function() {
     window.moveTo(elem.base.x + x - elem.start.x, elem.base.y + y - elem.start.y)
   }, (evt, elem) => {
     document.body.classList.remove('is-moving')
+  })
+
+  ;[].forEach.call(document.querySelectorAll('.canvas-flip-h'), elem => {
+    elem.addEventListener('click', evt => {
+      simulateShorcut('H')
+    })
   })
 
   attachAccessory(document.querySelectorAll('.layer-move'), 'CONTROL')
@@ -301,10 +364,6 @@ function ra2xy(r, a, x, y) {
     x: (x || 0) + r * Math.cos(a),
     y: (y || 0) + r * Math.sin(a),
   }
-}
-
-function vec(fn) {
-  return (v1, v2) => ({ x: fn(v1.x, v2.x), y: fn(v1.y, v2.y) })
 }
 
 // https://gist.github.com/xpansive/1337890
@@ -343,6 +402,10 @@ void(function() {
     ringRadius = hw - historyRingSize - colorRingSize / 2,
     ringStepPoints = ln(ringRadius, 6, 0)
 
+  const floatChildSize = historyRingSize * 2 + colorRingSize,
+    floatRadius = hw - floatChildSize / 2,
+    floatChildPoints = ln(floatRadius, config.floatButtons.length, 0)
+
   const pickerRadius = hw - historyRingSize - colorRingSize,
     p1 = pt(pickerRadius, 0),
     p2 = pt(pickerRadius, 120 / 180 * Math.PI),
@@ -360,6 +423,14 @@ void(function() {
       </linearGradient>`
     ).join('')}
     </defs>
+    <g class="float-button-child" fill="none">
+      <circle cx="${hw}" cy="${hw}" r="${floatRadius}"
+        stroke="hsl(0, 0%, 90%)" stroke-width="${floatChildSize}" />
+    ${floatChildPoints.map(([p1, p2, r], i) =>
+      `<text class="float-button-child-item" x=${p1.x} y=${p1.y} fill="black"
+        text-anchor="middle" alignment-baseline="central"></text>`
+    ).join('')}
+    </g>
     <g class="color-picker-hue" fill="none" stroke-width="${colorRingSize}">
     ${ringStepPoints.map(([p1, p2, r], i) =>
       `<path d="M ${p1.x} ${p1.y} A ${r} ${r} 0 0 1 ${p2.x} ${p2.y}"
@@ -471,26 +542,26 @@ void(function() {
   }
 
   function mapXYtoLocal(x, y) {
-    const rect = cpElem.getBoundingClientRect(),
-      c = { x: (rect.left + rect.right) / 2, y : (rect.top + rect.bottom) / 2 },
-      v = { x: x - c.x, y: y - c.y },
-      r = hypot(v.x, v.y),
-      a = Math.atan2(v.y, v.x)
-    return pt(r * contentSize / rect.width, a - currentHSV.h / 180 * Math.PI)
+    const c = getElementCenter(cpElem),
+      r = hypot(y - c.y, x - c.x),
+      a = Math.atan2(y - c.y, x - c.x)
+    return pt(r, a - currentHSV.h / 180 * Math.PI)
   }
 
   function setSVFromPoint(px, py) {
     const { x, y } = mapXYtoLocal(px, py),
-      { s, v } = getSVFromXY(x, y)
-    setHSV(currentHSV.h, s, v)
-    ipcRenderer.send('sai-color-hsv', currentHSV.h, currentHSV.s, currentHSV.v)
+      { s, v } = getSVFromXY(x, y),
+      { h } = currentHSV
+    setHSV(h, s, v)
+    ipcRenderer.send('sai-color-hsv', h, s, v)
   }
 
   function setHueFromPoint(px, py) {
     const { a } = mapXYtoLocal(px, py),
-      h = a * 180 / Math.PI + currentHSV.h
-    setHSV(h, currentHSV.s, currentHSV.v)
-    ipcRenderer.send('sai-color-hsv', currentHSV.h, currentHSV.s, currentHSV.v)
+      h = a * 180 / Math.PI + currentHSV.h,
+      { s, v } = currentHSV
+    setHSV(h, s, v)
+    ipcRenderer.send('sai-color-hsv', h, s, v)
   }
 
   let colorHistory = ['0,0,0.95']
@@ -509,20 +580,19 @@ void(function() {
     })
   }
 
-  function setColorFromHistoryPoint(px, py) {
-    const rect = cpElem.getBoundingClientRect(),
-      c = { x: (rect.left + rect.right) / 2, y: (rect.top + rect.bottom) / 2 },
-      k = { x: px - c.x, y: py - c.y },
-      a = Math.atan2(k.y, k.x),
-      p = historyStepPoints.map(v => v.map(p => nearestRad(a, p.a))),
-      r = p.find(b => b[0] <= a && a <= b[1]),
+  function setColorFromHistoryPoint(x, y) {
+    const c = getElementCenter(cpElem),
+      a = Math.atan2(y - c.y, x - c.x),
       q = document.querySelectorAll('.color-picker-history-hsv'),
-      e = q[p.indexOf(r)] || q[q.length - 1],
-      [h, s, v] = e.getAttribute('color-hsv').split(',').map(parseFloat)
+      p = historyStepPoints.map(([p1, p2]) => ({ a1: p1.a, a2: p2.a })),
+      e = [].find.call(q, (e, i) => nearestRad(a, p[i].a1) <= a && a <= nearestRad(a, p[i].a2)),
+      [h, s, v] = (e || q[q.length - 1]).getAttribute('color-hsv').split(',').map(parseFloat)
+
     ;[].forEach.call(q, e => e.classList.remove('active'))
     e.classList.add('active')
+
     setHSV(h, s, v)
-    ipcRenderer.send('sai-color-hsv', currentHSV.h, currentHSV.s, currentHSV.v)
+    ipcRenderer.send('sai-color-hsv', h, s, v)
   }
 
   attachDraggable(document.querySelectorAll('.color-picker-hue'), (evt, elem) => {

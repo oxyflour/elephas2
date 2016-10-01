@@ -58,7 +58,7 @@ void SaiHooker::unhook() {
   }
 }
 
-bool SaiHooker::isOK() {
+bool SaiHooker::isHooked() {
   return IsWindow(saiMain) && msgHook && wndHook;
 }
 

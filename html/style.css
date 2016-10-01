@@ -89,7 +89,6 @@ body.show-color-history .color-picker-history {
 .color-picker-history-selector {
   overflow: hidden;
 }
-
 .color-picker-history-selector .color-picker-color-bg {
   margin-left: 50%;
   width: 50%;
@@ -97,21 +96,56 @@ body.show-color-history .color-picker-history {
   display: block;
 }
 
-.color-picker-history-hsv {
+.color-picker-history-hsv,
+.float-button-child-item {
   opacity: 0.3;
 }
-
-.color-picker-history-hsv.active {
+.color-picker-history-hsv.active,
+.float-button-child-item.active {
   opacity: 1;
 }
 
+.float-button-child-item {
+  padding: 3px;
+}
+
+.color-picker-sv,
+.color-picker-hue {
+  transition: opacity 0.2s;
+}
+.float-button-child {
+  opacity: 0;
+  transition: opacity 0.2s;
+  font-size: 90%;
+}
+body.show-float-child .float-button-child {
+  opacity: 0.8;
+}
+body.show-float-child .color-picker-sv,
+body.show-float-child .color-picker-hue {
+  opacity: 0;
+}
+
+.clear {
+  clear: both;
+}
 #control {
   right: 0;
   top: 0;
 }
 #control .ctrl {
-  display: inline-block;
-  float: left;
-  padding: 10px 5px;
+  width: 25px;
+  height: 25px;
+  line-height: 25px;
+  display: block;
+  float: right;
   cursor: pointer;
+  text-align: center;
+}
+
+#status {
+  left: 0;
+  bottom: 0;
+  font-size: 70%;
+  color: #aaa;
 }

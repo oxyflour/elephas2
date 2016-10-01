@@ -26,7 +26,7 @@ public:
   SaiHooker(HOOKPROC GetMsgProc, HOOKPROC CallWndRetProc);
   ~SaiHooker();
 
-  bool isOK();
+  bool isHooked();
   void hook();
   void unhook();
 

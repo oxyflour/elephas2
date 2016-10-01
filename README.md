@@ -1,11 +1,14 @@
 # elephas2
-electron-based popup helper above sai2
----
-[Development pending]
+electron-based popup helper above SAI2
 
-see
-http://www.codeproject.com/Articles/692286/WPF-and-multi-touch
-and
-https://connect.microsoft.com/VisualStudio/feedback/details/903760/wpf-touch-services-are-badly-broken
+## Status
+In prototype. Don't use.
 
-It seems impossible to get touch events before MSFT fix the issue
+## Features
+* Touch support for SAI2 (tap / move / zoom / rotate)
+* Popup palette with color history like the one in Krita
+* Configurable radial toolbars
+
+## Known issues
+* When users touch menubar with their fingers, Windows does not send balanced WM\_POINTERDOWN/WM\_POINTERUP messages and the tap actions will be broken. You should use your digitizer to click the menubar if possible
+* Shortcuts will sometimes be sent to floating view unexpectly

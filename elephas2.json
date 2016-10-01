@@ -1,0 +1,135 @@
+{
+  "saiPath": "C:\\Programs\\sai2-20160730-64bit-en\\sai2.exe",
+  "hookRetryTimeout": 3000,
+  "autoStart": false,
+  "tapShortcuts": [
+    "",
+    "CONTROL+Z",
+    "TAB",
+    "F11"
+  ],
+  "showDevTools": false,
+  "width": 250,
+  "height": 250,
+  "floatButtonSize": 40,
+  "colorRingSize": 15,
+  "historyRingSize": 10,
+  "historyColorCount": 24,
+  "triggerKeyChar": "Q",
+  "triggerPenButton": "inverted",
+  "floatButtons": [
+    {
+      "usage": "color-history",
+      "title": "drag to show color history"
+    },
+    {
+      "cls": "icon-broom",
+      "key": "DELETE",
+      "title": "clear canvas (Del)"
+    },
+    {
+      "cls": "icon-undo",
+      "key": "CONTROL+Z",
+      "title": "undo (Ctrl+Z)",
+      "children": [
+        {
+          "cls": "icon-repeat",
+          "key": "CONTROL+Y",
+          "title": "redo (Ctrl+Y)"
+        }
+      ]
+    },
+    {
+      "cls": "icon-pencil",
+      "key": "N",
+      "title": "pencil (N)",
+      "children": [
+        {
+          "cls": "icon-brush",
+          "key": "V",
+          "title": "brush (V)"
+        },
+        {
+          "cls": "icon-paintbrush",
+          "key": "C",
+          "title": "water color (C)"
+        },
+        {
+          "cls": "icon-marker",
+          "key": "M",
+          "title": "marker* (M)"
+        }
+      ]
+    },
+    {
+      "cls": "icon-eraser",
+      "key": "E",
+      "title": "eraser (E)"
+    },
+    {
+      "cls": "icon-eyedropper",
+      "key": "U",
+      "title": "straw* (U)"
+    },
+    {
+      "cls": "icon-lasso",
+      "key": "W",
+      "title": "lasso* (W)",
+      "children": [
+        {
+          "cls": "icon-circlepencil",
+          "key": "S",
+          "title": "select pen* (S)"
+        },
+        {
+          "cls": "icon-circlespoon",
+          "key": "A",
+          "title": "select eraser* (A)"
+        },
+        {
+          "cls": "icon-selectionadd",
+          "key": "CONTROL+A",
+          "title": "select all (Ctrl+A)"
+        },
+        {
+          "cls": "icon-selectionintersect",
+          "key": "CONTROL+D",
+          "title": "cancel selection (Ctrl+D)"
+        }
+      ]
+    },
+    {
+      "cls": "fa",
+      "key": ""
+    },
+    {
+      "cls": "fa",
+      "key": ""
+    },
+    {
+      "cls": "fa",
+      "key": ""
+    },
+    {
+      "cls": "fa",
+      "key": ""
+    },
+    {
+      "cls": "icon-save-floppy",
+      "key": "CONTROL+S",
+      "title": "save... (Ctrl+S)",
+      "children": [
+        {
+          "cls": "icon-file",
+          "key": "CONTROL+O",
+          "title": "open... (Ctrl+O)"
+        },
+        {
+          "cls": "icon-createfile",
+          "key": "CONTROL+N",
+          "title": "new... (Ctrl+N)"
+        }
+      ]
+    }
+  ]
+}

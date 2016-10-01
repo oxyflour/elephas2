@@ -78,6 +78,10 @@ void SaiConnector::connect() {
   EnumThreadWindows(GetCurrentThreadId(), EnumThreadWndProc, (LPARAM) &wnds);
 }
 
+HWND SaiConnector::getCanvasParent() {
+  return GetWindow(wnds[CANVAS_CONTAINER], GW_CHILD);
+}
+
 void SaiConnector::moveCanvas(int dx, int dy) {
   HWND hWnd = GetWindow(wnds[CANVAS_CONTAINER], GW_CHILD);
   PostMessage(hWnd, WM_KEYDOWN, VK_SPACE, 0);

@@ -14,9 +14,11 @@ private:
 public:
   TouchManipulation(int msgVal);
 
-  HRESULT ProcessDownWithTime(MANIPULATOR_ID id, FLOAT x, FLOAT y, DWORD time);
-  HRESULT ProcessMoveWithTime(MANIPULATOR_ID id, FLOAT x, FLOAT y, DWORD time);
-  HRESULT ProcessUpWithTime(MANIPULATOR_ID id, FLOAT x, FLOAT y, DWORD time);
+  void completeManipulation();
+
+  HRESULT processDownWithTime(MANIPULATOR_ID id, FLOAT x, FLOAT y, DWORD time);
+  HRESULT processMoveWithTime(MANIPULATOR_ID id, FLOAT x, FLOAT y, DWORD time);
+  HRESULT processUpWithTime(MANIPULATOR_ID id, FLOAT x, FLOAT y, DWORD time);
 
   // _IManipulationEvents
   virtual HRESULT STDMETHODCALLTYPE ManipulationStarted(FLOAT x, FLOAT y);
