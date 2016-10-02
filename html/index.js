@@ -558,7 +558,7 @@ void(function() {
 
   function setHueFromPoint(px, py) {
     const { a } = mapXYtoLocal(px, py),
-      h = a * 180 / Math.PI + currentHSV.h,
+      h = (a * 180 / Math.PI + currentHSV.h + 360) % 360,
       { s, v } = currentHSV
     setHSV(h, s, v)
     ipcRenderer.send('sai-color-hsv', h, s, v)
