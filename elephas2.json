@@ -90,21 +90,30 @@
           "cls": "icon-selectionadd",
           "key": "CONTROL+A",
           "title": "select all (Ctrl+A)"
-        },
-        {
-          "cls": "icon-selectionintersect",
-          "key": "CONTROL+D",
-          "title": "cancel selection (Ctrl+D)"
         }
       ]
     },
     {
-      "cls": "fa",
-      "key": ""
+      "cls": "icon-selectionintersect",
+      "key": "CONTROL+D",
+      "title": "cancel selection (Ctrl+D)"
     },
     {
-      "cls": "fa",
-      "key": ""
+      "cls": "icon-transform",
+      "key": "CONTROL+T",
+      "title": "transform (Ctrl+T)",
+      "children": [
+        {
+          "cls": "icon-ok",
+          "key": "RETURN",
+          "title": "ok (Enter)"
+        },
+        {
+          "cls": "icon-remove",
+          "key": "ESCAPE",
+          "title": "cancel (Esc)"
+        }
+      ]
     },
     {
       "cls": "fa",
@@ -128,6 +137,11 @@
           "cls": "icon-createfile",
           "key": "CONTROL+N",
           "title": "new... (Ctrl+N)"
+        },
+        {
+          "cls": "icon-savetodrive",
+          "key": "CONTROL+SHIFT+S",
+          "title": "save as... (Ctrl+Shift+S)"
         }
       ]
     }
