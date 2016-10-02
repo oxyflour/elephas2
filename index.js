@@ -204,9 +204,8 @@ ipcMain.on('get-cursor-position', evt => {
   evt.returnValue = electron.screen.getCursorScreenPoint()
 })
 
-ipcMain.on('save-config', (evt, key, val) => {
-  config[key] = val
-  fs.writeFileSync(configPath, JSON.stringify(config, null, 2))
+ipcMain.on('app-quit', evt => {
+  win.close()
 })
 
 ipcMain.on('show-window', (evt, show) => {

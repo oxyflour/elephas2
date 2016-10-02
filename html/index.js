@@ -201,6 +201,7 @@ void(function() {
       `<span index="${index}" title="${data.title || ''}"
           class="float-button"
           shortcut-keys="${data.key || ''}"
+          app-cmd="${data.cmd || ''}"
           keep-open="${data.keepOpen || ''}">
         <i class="${data.cls || ''}"></i>
       </span>`)
@@ -220,6 +221,7 @@ void(function() {
       const offset = index > q.length / 2 ? i + index : q.length * 2 - (i + index),
         data = children[offset % q.length] || { }
       elem.setAttribute('shortcut-keys', data.key || '')
+      elem.setAttribute('app-cmd', data.cmd || '')
       elem.setAttribute('keep-open', data.keepOpen || '')
       elem.title = data.title || ''
       iconFont.className = data.cls
@@ -240,7 +242,7 @@ void(function() {
   }
 
   const statusElem = document.getElementById('status')
-  floatButtons.forEach(elem => attachDraggable(elem, (evt, elem) => {
+  attachDraggable(floatButtons, (evt, elem) => {
     clearTimeout(showChildTimeout)
     showChildTimeout = setTimeout(_ => {
       document.body.classList.add('show-float-child')
@@ -257,13 +259,14 @@ void(function() {
     if (target) {
       simulateShorcut(target.getAttribute('shortcut-keys'))
       target.getAttribute('keep-open') || window.dispatchEvent(new Event('request-hide-window'))
+      target.getAttribute('app-cmd') && ipcRenderer.send(target.getAttribute('app-cmd'))
     }
     clearTimeout(showChildTimeout)
     showChildTimeout = setTimeout(_ => document.body.classList.remove('show-float-child'), 100)
     statusElem.innerHTML = ''
   }, (evt, elem) => {
     return elem.classList.contains('color-picker-history-selector')
-  }))
+  })
 
   function updateFloatButtons(offset) {
     const radius = (contentSize + config.floatButtonSize) / 2 + offset

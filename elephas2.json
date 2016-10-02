@@ -104,6 +104,11 @@
       "title": "transform (Ctrl+T)",
       "children": [
         {
+          "cls": "icon-ok-circle",
+          "key": "RETURN CONTROL+D",
+          "title": "ok (Enter Ctrl+D)"
+        },
+        {
           "cls": "icon-ok",
           "key": "RETURN",
           "title": "ok (Enter)"
@@ -120,8 +125,21 @@
       "key": ""
     },
     {
-      "cls": "fa",
-      "key": ""
+      "cls": "icon-twocolumnsright",
+      "key": "TAB",
+      "title": "show panel (Tab)",
+      "children": [
+        {
+          "cls": "icon-fullscreen",
+          "key": "F11",
+          "title": "fullscreen (F11)"
+        },
+        {
+          "cls": "icon-exit",
+          "cmd": "app-quit",
+          "title": "quit"
+        }
+      ]
     },
     {
       "cls": "icon-save-floppy",
